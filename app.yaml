@@ -1,0 +1,9 @@
+runtime: nodejs22
+instance_class: F4
+entrypoint: node service/index.mjs
+handlers:
+- url: /.*
+  secure: always
+  redirect_http_response_code: 301
+  script: auto
+env_variables:

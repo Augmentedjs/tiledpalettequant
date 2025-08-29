@@ -1,22 +1,31 @@
+volumes:
+  ui-tpq-volume:
+
 services:
-  web:
-    # Dev: serve your working tree live
-    image: nginx:1.27-alpine
-    container_name: tpq-web
-    ports:
-      - "${PORT:-8080}:80"
-    volumes:
-      - ./:/usr/share/nginx/html:ro
-      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
-    # hot-reload is just your browser refresh; files are bind-mounted
-
-  prod:
-    # Prod: build a static image (no bind mount)
+  tpq-service:
     build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: tpq-prod
+      context: ./service
+      network: host
+    container_name: tpq-service
+    environment:
+      PORT: 8080
+      IN_DOCKER: "true"
+      NODE_ENV: development
     ports:
-      - "${PORT:-8080}:80"
-    profiles: ["prod"]  # run with: docker compose --profile prod up --build -d
-
+      - "8080:8080"
+    expose:
+      - 8080
+    depends_on:
+      - ui-tpq
+    volumes:
+      - ui-tpq-volume:/public
+  ui-tpq:
+    build:
+      context: ./ui
+      network: host
+    container_name: tpq-ui
+    volumes:
+      - ui-tpq-volume:/public
+    environment:
+      IN_DOCKER: "true"
+      API_URL: "/"
