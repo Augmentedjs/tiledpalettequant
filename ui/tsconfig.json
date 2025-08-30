@@ -6,7 +6,11 @@
     "sourceMap": true,
     "target": "ES2022",
     "outDir": "dist",
-    "lib": ["dom", "dom.iterable", "esnext"],
+    "lib": [
+      "dom",
+      "dom.iterable",
+      "esnext"
+    ],
     "allowJs": false,
     "allowSyntheticDefaultImports": true,
     "moduleResolution": "node",
@@ -14,10 +18,17 @@
     "isolatedModules": true,
     "jsx": "react-jsx",
     "strict": true,
+    "baseUrl": ".",
+    "paths": {
+      "handlers/*": [
+        "../handlers/*"
+      ]
+    },
     "typeRoots": [
-      "node_modules/@types", 
-      "@types", 
+      "node_modules/@types",
+      "@types",
       "src/@types"
-    ]
+    ],
+    "module": "es2020"
   }
 }

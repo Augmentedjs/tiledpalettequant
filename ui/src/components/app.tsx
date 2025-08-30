@@ -4,7 +4,7 @@ import { Base } from "../pages/base";
 import { BigForm } from "../pages/form";
 // import { ControlsPanel } from './components/ControlsPanel';
 // import { PreviewPane } from './components/PreviewPane';
-import { useQuantizer } from './hooks/useQuantizer';
+import { useQuantizer } from "../hooks/useQuantizer";
 
 const App = () => {
   const q = useQuantizer();

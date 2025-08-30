@@ -32,3 +32,5 @@ type QuantResult = {
   /** One byte per 8×8 tile: which palette block (0..3) that tile uses */
   tileBlocks: Uint8Array;
 };
+
+

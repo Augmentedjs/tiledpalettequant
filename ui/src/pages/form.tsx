@@ -101,7 +101,7 @@ export const BigForm = ({ settings, onChange, onRun, onImagePick, disabled = fal
               labelId="palettes-label"
               label="Palettes"
               value={settings.palettes}
-              onChange={(e) => set("palettes", Number(e.target.value))}>
+              onChange={(e) => set("palettes", Number(e.target.value) as TpqSettings["palettes"])}>
               {paletteChoices.map((n) => (
                 <MenuItem key={n} value={n}>
                   {n}
@@ -117,7 +117,7 @@ export const BigForm = ({ settings, onChange, onRun, onImagePick, disabled = fal
               labelId="cpp-label"
               label="Colors / palette"
               value={settings.colorsPerPalette}
-              onChange={(e) => set("colorsPerPalette", Number(e.target.value))}>
+              onChange={(e) => set("colorsPerPalette", Number(e.target.value) as TpqSettings["colorsPerPalette"])}>
               {colorsChoices.map((n) => (
                 <MenuItem key={n} value={n}>
                   {n}

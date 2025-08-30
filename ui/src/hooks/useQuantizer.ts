@@ -1,5 +1,4 @@
 import { useCallback, useRef, useState } from 'react';
-import type { QuantResult, TpqSettings } from '../types';
 
 // ---------- Genesis-ish defaults ----------
 export const GENESIS_DEFAULTS: TpqSettings = {
@@ -112,17 +111,17 @@ export const useQuantizer = () => {
     }
 
     // Fallback: call legacy quantizer directly
-    try {
-      const { quantize } = await import(/* webpackChunkName: "handlers-quantize" */ '../../handlers/quantize');
-      const res: QuantResult = await quantize(imageData, state);
-      setResult(res);
-      return res;
-    } catch (e: any) {
-      setError(e?.message ?? String(e));
-      throw e;
-    } finally {
-      setBusy(false);
-    }
+    // try {
+    //   const { quantize } = await import(/* webpackChunkName: "handlers-quantize" */ '../../handlers/quantize');
+    //   const res: QuantResult = await quantize(imageData, state);
+    //   setResult(res);
+    //   return res;
+    // } catch (e: any) {
+    //   setError(e?.message ?? String(e));
+    //   throw e;
+    // } finally {
+    //   setBusy(false);
+    // }
   }, [getWorker, source, state]);
 
   // ---------- exporters ----------
@@ -138,9 +137,9 @@ export const useQuantizer = () => {
     for (let i = 0, p = 0; i < indices.length; i++, p += 4) {
       const idx = indices[i] | 0;
       const base = idx * 3;
-      data[p]     = paletteRGB[base]   ?? 0;
-      data[p + 1] = paletteRGB[base+1] ?? 0;
-      data[p + 2] = paletteRGB[base+2] ?? 0;
+      data[p] = paletteRGB[base] ?? 0;
+      data[p + 1] = paletteRGB[base + 1] ?? 0;
+      data[p + 2] = paletteRGB[base + 2] ?? 0;
       data[p + 3] = (transparentIndex !== null && idx === transparentIndex) ? 0 : 255;
     }
     ctx.putImageData(out, 0, 0);
@@ -220,9 +219,9 @@ const encodeBMPIndexed8 = (res: QuantResult, transparentIndex: number | null = n
   // Palette (256 entries of B,G,R,0) — preserve order from paletteRGB
   for (let i = 0; i < paletteCount; i++) {
     const base = i * 3;
-    const r = paletteRGB[base]   ?? 0;
-    const g = paletteRGB[base+1] ?? 0;
-    const b = paletteRGB[base+2] ?? 0;
+    const r = paletteRGB[base] ?? 0;
+    const g = paletteRGB[base + 1] ?? 0;
+    const b = paletteRGB[base + 2] ?? 0;
     dv.setUint8(off++, b);
     dv.setUint8(off++, g);
     dv.setUint8(off++, r);
