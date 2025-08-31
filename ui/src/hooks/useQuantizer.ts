@@ -1,6 +1,16 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
-// ---------- Genesis-ish defaults ----------
+type Index0Mode = 'unique' | 'shared';
+
+export type TpqSettings = {
+  tileSize: number;
+  palettes: number;
+  colorsPerPalette: number;
+  bitsPerChannel: number;
+  dither: boolean;
+  index0: Index0Mode;
+};
+
 export const GENESIS_DEFAULTS: TpqSettings = {
   tileSize: 8,
   palettes: 4,
@@ -10,234 +20,162 @@ export const GENESIS_DEFAULTS: TpqSettings = {
   index0: 'unique',
 };
 
-// ---------- Types for worker bridge ----------
-type RunMsg = { type: 'RUN'; imageData: ImageData; settings: TpqSettings };
-type DoneMsg = { type: 'DONE'; result: QuantResult };
-type ErrMsg = { type: 'ERROR'; error: string };
-type WorkerMsg = DoneMsg | ErrMsg;
+type LegacyQuantOptions = {
+  tileWidth: number;
+  tileHeight: number;
+  numPalettes: number;
+  colorsPerPalette: number;
+  bitsPerChannel: number;
+  fractionOfPixels: number;
+  colorZeroBehaviour: number;
+  colorZeroValue: [number, number, number];
+  dither: number;
+  ditherWeight: number;
+  ditherPattern: number;
+};
 
-// ---------- Hook ----------
+const LEGACY = {
+  ColorZeroBehaviour: { Unique: 0, Shared: 1, TransparentFromTransparent: 2, TransparentFromColor: 3 },
+  Dither: { Off: 0, Fast: 1, Slow: 2 },
+  DitherPattern: { Diagonal4: 0, Horizontal4: 1, Vertical4: 2, Diagonal2: 3, Horizontal2: 4, Vertical2: 5 },
+  Action: { UpdateProgress: 1, UpdateQuantizedImage: 2, UpdatePalettes: 3, DoneQuantization: 4 },
+} as const;
+
 export const useQuantizer = () => {
   const [state, setState] = useState<TpqSettings>(GENESIS_DEFAULTS);
-  const [result, setResult] = useState<QuantResult | null>(null);
+
   const [source, setSource] = useState<ImageData | null>(null);
+  const [preview, setPreview] = useState<ImageData | null>(null);
+  const [palettes, setPalettes] = useState<number[][] | null>(null);
+  const [progress, setProgress] = useState(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
   const workerRef = useRef<Worker | null>(null);
 
-  // Create worker lazily (webpack 5 module worker). If not present, we’ll fallback.
-  const getWorker = useCallback(() => {
-    if (workerRef.current) return workerRef.current;
-    try {
-      // Adjust path if you keep workers elsewhere
-      const w = new Worker(new URL('../workers/quantWorker.ts', import.meta.url), { type: 'module' });
-      workerRef.current = w;
-      return w;
-    } catch {
-      return null;
-    }
+  // create/destroy worker
+  useEffect(() => {
+    const w = new Worker(new URL('../workers/legacy/worker-legacy.js', import.meta.url)); // classic worker
+    workerRef.current = w;
+    return () => { try { w.terminate(); } catch { /* noop */ } };
   }, []);
 
-  // ---------- image IO ----------
-  const fileToImageData = useCallback(async (file: File): Promise<ImageData> => {
+  // image loader -> ImageData
+  const fileToImageData = useCallback(async (file: File) => {
     const buf = await file.arrayBuffer();
-    // Prefer ImageBitmap for speed; fallback to HTMLImageElement
-    if ('createImageBitmap' in window) {
-      const bmp = await createImageBitmap(new Blob([buf]));
-      const { width, height } = bmp;
-      if ('OffscreenCanvas' in window) {
-        const oc = new OffscreenCanvas(width, height);
-        const ctx = oc.getContext('2d')!;
-        ctx.drawImage(bmp, 0, 0);
-        return ctx.getImageData(0, 0, width, height);
-      } else {
-        const cv = document.createElement('canvas');
-        cv.width = width; cv.height = height;
-        const ctx = cv.getContext('2d')!;
-        ctx.drawImage(bmp, 0, 0);
-        return ctx.getImageData(0, 0, width, height);
-      }
-    } else {
-      const url = URL.createObjectURL(new Blob([buf]));
-      const img = await new Promise<HTMLImageElement>((res, rej) => {
-        const i = new Image();
-        i.onload = () => res(i);
-        i.onerror = rej;
-        i.src = url;
-      });
-      const cv = document.createElement('canvas');
-      cv.width = img.width; cv.height = img.height;
-      const ctx = cv.getContext('2d')!;
-      ctx.drawImage(img, 0, 0);
-      return ctx.getImageData(0, 0, img.width, img.height);
-    }
+    const blob = new Blob([buf]);
+    const bmp = await createImageBitmap(blob);
+    const cv = document.createElement('canvas');
+    cv.width = bmp.width; cv.height = bmp.height;
+    const ctx = cv.getContext('2d')!;
+    ctx.drawImage(bmp, 0, 0);
+    return ctx.getImageData(0, 0, bmp.width, bmp.height);
   }, []);
 
   const loadFile = useCallback(async (file: File) => {
     setError(null);
     const img = await fileToImageData(file);
     setSource(img);
+    setPreview(null);
     return img;
   }, [fileToImageData]);
 
-  // ---------- quant run (worker preferred; fallback to handlers) ----------
+  // build legacy quantization options from our state
+  const toLegacyOptions = useCallback((s: TpqSettings): LegacyQuantOptions => {
+    return {
+      tileWidth: s.tileSize,
+      tileHeight: s.tileSize,
+      numPalettes: s.palettes,
+      colorsPerPalette: s.colorsPerPalette,
+      bitsPerChannel: s.bitsPerChannel,
+      fractionOfPixels: 1.0,          // simple default
+      colorZeroBehaviour: s.index0 === 'unique' ? LEGACY.ColorZeroBehaviour.Unique : LEGACY.ColorZeroBehaviour.Shared,
+      colorZeroValue: [0, 0, 0],      // default black for index-0 if needed
+      dither: s.dither ? LEGACY.Dither.Fast : LEGACY.Dither.Off,
+      ditherWeight: 1.0,
+      ditherPattern: LEGACY.DitherPattern.Diagonal4,
+    };
+  }, []);
+
+  // run quantizer via worker
   const run = useCallback(async (img?: ImageData) => {
+    const w = workerRef.current;
+    if (!w) throw new Error('Worker not ready');
     const imageData = img ?? source;
-    if (!imageData) throw new Error('No source image loaded.');
-    setBusy(true); setError(null);
+    if (!imageData) throw new Error('No source image loaded');
 
-    const worker = getWorker();
-    if (worker) {
-      const res = await new Promise<QuantResult>((resolve, reject) => {
-        const onMsg = (ev: MessageEvent<WorkerMsg>) => {
-          const m = ev.data;
-          if (m?.type === 'DONE') { cleanup(); resolve(m.result); }
-          else if (m?.type === 'ERROR') { cleanup(); reject(new Error(m.error)); }
-        };
-        const onErr = (e: MessageEvent) => { cleanup(); reject(new Error(String(e))); };
-        const cleanup = () => {
-          worker.removeEventListener('message', onMsg as any);
-          worker.removeEventListener('error', onErr as any);
-        };
-        worker.addEventListener('message', onMsg as any);
-        worker.addEventListener('error', onErr as any);
-        const msg: RunMsg = { type: 'RUN', imageData, settings: state };
-        worker.postMessage(msg);
-      }).catch((e) => { throw e; });
+    setBusy(true);
+    setError(null);
+    setProgress(0);
 
-      setResult(res);
+    const offHandlers = () => {
+      w.onmessage = null;
+      w.onerror = null;
+    };
+
+    const done = () => {
       setBusy(false);
-      return res;
-    }
+      offHandlers();
+    };
 
-    // Fallback: call legacy quantizer directly
-    // try {
-    //   const { quantize } = await import(/* webpackChunkName: "handlers-quantize" */ '../../handlers/quantize');
-    //   const res: QuantResult = await quantize(imageData, state);
-    //   setResult(res);
-    //   return res;
-    // } catch (e: any) {
-    //   setError(e?.message ?? String(e));
-    //   throw e;
-    // } finally {
-    //   setBusy(false);
-    // }
-  }, [getWorker, source, state]);
+    return await new Promise<void>((resolve, reject) => {
+      w.onmessage = (ev: MessageEvent<any>) => {
+        const data = ev.data;
+        switch (data?.action) {
+          case LEGACY.Action.UpdateProgress:
+            setProgress(Math.max(0, Math.min(100, Number(data.progress) || 0)));
+            break;
+          case LEGACY.Action.UpdateQuantizedImage:
+            // data.imageData is an ImageData coming from the worker
+            setPreview(data.imageData);
+            break;
+          case LEGACY.Action.UpdatePalettes:
+            // array of palettes: number[numPalettes][numColors][3]
+            setPalettes(data.palettes);
+            break;
+          case LEGACY.Action.DoneQuantization:
+            done();
+            resolve();
+            break;
+          default:
+            // ignore other messages
+            break;
+        }
+      };
+      w.onerror = (e) => {
+        setError(String(e?.message || e));
+        done();
+        reject(e);
+      };
 
-  // ---------- exporters ----------
-  const savePNG = useCallback(async (name = 'tpq.png', transparentIndex: number | null = null) => {
-    if (!result) return;
-    const { width, height, indices, paletteRGB } = result;
-    const cv = document.createElement('canvas');
-    cv.width = width; cv.height = height;
-    const ctx = cv.getContext('2d')!;
-    const out = ctx.createImageData(width, height);
-    const data = out.data;
+      w.postMessage({
+        // the legacy worker doesn't actually check 'action' here, but sending it keeps parity
+        action: 0,
+        imageData,
+        quantizationOptions: toLegacyOptions(state),
+      });
+    });
+  }, [source, state, toLegacyOptions]);
 
-    for (let i = 0, p = 0; i < indices.length; i++, p += 4) {
-      const idx = indices[i] | 0;
-      const base = idx * 3;
-      data[p] = paletteRGB[base] ?? 0;
-      data[p + 1] = paletteRGB[base + 1] ?? 0;
-      data[p + 2] = paletteRGB[base + 2] ?? 0;
-      data[p + 3] = (transparentIndex !== null && idx === transparentIndex) ? 0 : 255;
-    }
-    ctx.putImageData(out, 0, 0);
-    cv.toBlob((blob) => blob && downloadBlob(blob, name), 'image/png');
-  }, [result]);
-
-  const saveBMP = useCallback((name = 'tpq.bmp', transparentIndex: number | null = null) => {
-    if (!result) return;
-    const blob = encodeBMPIndexed8(result, transparentIndex);
-    downloadBlob(blob, name);
-  }, [result]);
+  // helper: draw current preview into a canvas (call from your PreviewPane)
+  const drawToCanvas = useCallback((canvas: HTMLCanvasElement) => {
+    if (!preview) return;
+    canvas.width = preview.width;
+    canvas.height = preview.height;
+    const ctx = canvas.getContext('2d')!;
+    ctx.putImageData(preview, 0, 0);
+  }, [preview]);
 
   return {
+    // settings
     state, setState,
-    source, setSource,
-    result,
-    busy, error,
-    loadFile,
-    run,
-    savePNG,
-    saveBMP,
+    // io
+    loadFile, run,
+    // status
+    busy, error, progress,
+    // outputs
+    preview, palettes,
+    // util for preview
+    drawToCanvas,
   };
-};
-
-// ---------- helpers: download ----------
-const downloadBlob = (blob: Blob, name: string) => {
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = name;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
-};
-
-// ---------- BMP encoder (8bpp indexed, palette-preserving) ----------
-/**
- * Writes an 8bpp indexed BMP (Windows V3, BI_RGB). Palette entries are BGR0.
- * - Keeps palette order exactly as `result.paletteRGB` (first 256 entries used)
- * - Rows are bottom-up, padded to 4-byte boundaries
- */
-const encodeBMPIndexed8 = (res: QuantResult, transparentIndex: number | null = null): Blob => {
-  const { width: w, height: h, indices, paletteRGB } = res;
-
-  const bytesPerRowPadded = ((w + 3) & ~3); // pad to 4
-  const paletteCount = 256;                 // fixed 256 slots; we’ll fill from paletteRGB
-  const headerSize = 14 + 40;               // BITMAPFILEHEADER(14) + BITMAPINFOHEADER(40)
-  const paletteSize = paletteCount * 4;     // RGBA(4) each, but BMP uses BGR0
-  const pixelDataSize = bytesPerRowPadded * h;
-  const fileSize = headerSize + paletteSize + pixelDataSize;
-
-  const buf = new ArrayBuffer(fileSize);
-  const dv = new DataView(buf);
-  let off = 0;
-
-  // BITMAPFILEHEADER
-  dv.setUint8(off++, 0x42); // 'B'
-  dv.setUint8(off++, 0x4D); // 'M'
-  dv.setUint32(off, fileSize, true); off += 4;
-  dv.setUint16(off, 0, true); off += 2;
-  dv.setUint16(off, 0, true); off += 2;
-  dv.setUint32(off, headerSize + paletteSize, true); off += 4;
-
-  // BITMAPINFOHEADER (V3)
-  dv.setUint32(off, 40, true); off += 4;          // biSize
-  dv.setInt32(off, w, true); off += 4;            // biWidth
-  dv.setInt32(off, h, true); off += 4;            // biHeight (positive => bottom-up)
-  dv.setUint16(off, 1, true); off += 2;           // biPlanes
-  dv.setUint16(off, 8, true); off += 2;           // biBitCount = 8
-  dv.setUint32(off, 0, true); off += 4;           // biCompression = BI_RGB
-  dv.setUint32(off, pixelDataSize, true); off += 4;// biSizeImage
-  dv.setInt32(off, 2835, true); off += 4;         // biXPelsPerMeter (~72 DPI)
-  dv.setInt32(off, 2835, true); off += 4;         // biYPelsPerMeter
-  dv.setUint32(off, paletteCount, true); off += 4;// biClrUsed
-  dv.setUint32(off, 0, true); off += 4;           // biClrImportant
-
-  // Palette (256 entries of B,G,R,0) — preserve order from paletteRGB
-  for (let i = 0; i < paletteCount; i++) {
-    const base = i * 3;
-    const r = paletteRGB[base] ?? 0;
-    const g = paletteRGB[base + 1] ?? 0;
-    const b = paletteRGB[base + 2] ?? 0;
-    dv.setUint8(off++, b);
-    dv.setUint8(off++, g);
-    dv.setUint8(off++, r);
-    dv.setUint8(off++, (transparentIndex !== null && i === transparentIndex) ? 0 : 0);
-  }
-
-  // Pixel data (bottom-up rows, 1 byte per pixel, padded)
-  const row = new Uint8Array(buf, headerSize + paletteSize, pixelDataSize);
-  for (let y = 0; y < h; y++) {
-    const srcY = h - 1 - y;                    // bottom-up
-    const dstRowStart = y * bytesPerRowPadded;
-    for (let x = 0; x < w; x++) {
-      row[dstRowStart + x] = indices[srcY * w + x] & 0xFF;
-    }
-    // pad zeros to 4-byte boundary implicitly (row is already zero-filled)
-  }
-
-  return new Blob([buf], { type: 'image/bmp' });
 };

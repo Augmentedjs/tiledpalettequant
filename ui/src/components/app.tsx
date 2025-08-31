@@ -1,10 +1,9 @@
-import { CssBaseline, Container, Button } from "@mui/material";
+import { CssBaseline, Container } from "@mui/material";
 import { SystemThemeProvider } from "../theme";
 import { Base } from "../pages/base";
 import { BigForm } from "../pages/form";
-// import { ControlsPanel } from './components/ControlsPanel';
-// import { PreviewPane } from './components/PreviewPane';
 import { useQuantizer } from "../hooks/useQuantizer";
+import { PreviewPane } from "./previewPane";
 
 const App = () => {
   const q = useQuantizer();
@@ -13,27 +12,18 @@ const App = () => {
     <SystemThemeProvider>
       <CssBaseline />
       <Container maxWidth="lg" sx={{ py: 3 }}>
-        {/* main preview/canvas */}
         <Base
-          title="Tiled Palette Quant"
-          actions={
-            <Button variant="outlined" size="small">
-              Export
-            </Button>
-          }
+          title="Tiled Palette Quantize"
           sidebar={
             <BigForm
               settings={q.state}
               onChange={q.setState}
-              onRun={() => q.result ? q.run(q.result as any) : undefined /* or pass current ImageData */}
-              onImagePick={(file) => {
-                // your image load → canvas/ImageBitmap → q.run(imageData)
-              }}
-              disabled={false}
+              onImagePick={q.loadFile}
+              onRun={() => q.run()}
+              disabled={q.busy}
             />
-          }
-          sidebarWidth={360}
-        >
+          }>
+          <PreviewPane busy={q.busy} progress={q.progress} drawToCanvas={q.drawToCanvas} />
         </Base>
       </Container>
     </SystemThemeProvider>
