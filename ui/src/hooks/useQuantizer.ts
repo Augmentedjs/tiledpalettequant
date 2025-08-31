@@ -39,7 +39,6 @@ export const useQuantizer = () => {
   const [progress, setProgress] = useState(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
   const workerRef = useRef<Worker | null>(null);
 
   // create/destroy worker
@@ -60,14 +59,6 @@ export const useQuantizer = () => {
     ctx.drawImage(bmp, 0, 0);
     return ctx.getImageData(0, 0, bmp.width, bmp.height);
   }, []);
-
-  const loadFile = useCallback(async (file: File) => {
-    setError(null);
-    const img = await fileToImageData(file);
-    setSource(img);
-    setPreview(null);
-    return img;
-  }, [fileToImageData]);
 
   // build legacy quantization options from our state
   const toLegacyOptions = useCallback((s: TpqSettings): LegacyQuantOptions => {
@@ -111,13 +102,16 @@ export const useQuantizer = () => {
       w.onmessage = (ev: MessageEvent<any>) => {
         const data = ev.data;
         switch (data?.action) {
+
           case LEGACY.Action.UpdateProgress:
             setProgress(Math.max(0, Math.min(100, Number(data.progress) || 0)));
             break;
-          case LEGACY.Action.UpdateQuantizedImage:
-            // data.imageData is an ImageData coming from the worker
-            setPreview(data.imageData);
+          case LEGACY.Action.UpdateQuantizedImage: {
+            const q = data.imageData; // may be plain object { width, height, data: Uint8ClampedArray }
+            const imgData = (q instanceof ImageData) ? q : new ImageData(q.data, q.width, q.height);
+            setPreview(imgData);
             break;
+          }
           case LEGACY.Action.UpdatePalettes:
             // array of palettes: number[numPalettes][numColors][3]
             setPalettes(data.palettes);
@@ -145,6 +139,15 @@ export const useQuantizer = () => {
       });
     });
   }, [source, state, toLegacyOptions]);
+
+  const loadFile = useCallback(async (file: File) => {
+    setError(null);
+    const img = await fileToImageData(file);
+    setSource(img);
+    setPreview(img);     // immediate raw preview
+    void run(img);       // auto-run (optional)
+    return img;
+  }, [fileToImageData, run]);
 
   // helper: draw current preview into a canvas (call from your PreviewPane)
   const drawToCanvas = useCallback((canvas: HTMLCanvasElement) => {

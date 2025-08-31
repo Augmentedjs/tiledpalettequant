@@ -35,6 +35,19 @@
   text-align: left;
 }
 
+img {
+  image-rendering: pixelated;
+}
+
+canvas {
+  image-rendering: pixelated;
+}
+
+/* body {
+  background-color: rgb(144, 144, 144);
+  padding-bottom: 100vh;
+} */
+
 body {
   background-color: var(--background-color);
   font-family: var(--font-family);
@@ -148,9 +161,3 @@ figure.logo img {
     width: 50px;
   }
 }
-
-/* @media (max-width: 900px prefers-color-scheme: dark), (max-width: 600px prefers-color-scheme: dark) {
-  :root {
-    --background-color: black;
-  }
-} */
