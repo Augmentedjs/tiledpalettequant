@@ -2,6 +2,7 @@
   "compilerOptions": {
     "noImplicitAny": false,
     "noEmitOnError": true,
+    "noEmit": false,
     "removeComments": true,
     "sourceMap": true,
     "target": "ES2022",
@@ -29,6 +30,7 @@
       "@types",
       "src/@types"
     ],
-    "module": "es2020"
-  }
+    "module": "es2022"
+  },
+  "include": ["src", "src/@types"]
 }

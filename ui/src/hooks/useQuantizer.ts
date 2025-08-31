@@ -1,16 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-type Index0Mode = 'unique' | 'shared';
-
-export type TpqSettings = {
-  tileSize: number;
-  palettes: number;
-  colorsPerPalette: number;
-  bitsPerChannel: number;
-  dither: boolean;
-  index0: Index0Mode;
-};
-
 export const GENESIS_DEFAULTS: TpqSettings = {
   tileSize: 8,
   palettes: 4,
