@@ -58,7 +58,7 @@ export const useQuantizer = () => {
 
   const [source, setSource] = useState<ImageData | null>(null);
   const [preview, setPreview] = useState<ImageData | null>(null);
-  const [palettes, setPalettes] = useState<number[][] | null>(null);
+  const [palettes, setPalettes] = useState<number[][][] | null>(null);
   const [progress, setProgress] = useState(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -187,7 +187,7 @@ export const useQuantizer = () => {
         });
       });
     },
-    [source, state, toLegacyOptions]
+    [source, state, toLegacyOptions, palettes]
   );
 
   const loadFile = useCallback(

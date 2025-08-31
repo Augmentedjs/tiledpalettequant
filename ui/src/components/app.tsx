@@ -1,4 +1,4 @@
-import { useEffect, useRef  } from "react";
+import { useEffect, useRef } from "react";
 import { CssBaseline, Container } from "@mui/material";
 import { SystemThemeProvider } from "../theme";
 import { Base } from "../pages/base";
@@ -11,15 +11,21 @@ const App = () => {
   const workerRef = useRef<Worker | null>(null);
 
   useEffect(() => {
-    const w = new Worker(new URL('../workers/legacy/worker-legacy.js', import.meta.url));
+    const w = new Worker(new URL("../workers/legacy/worker-legacy.js", import.meta.url));
     workerRef.current = w;
-    return () => { try { w.terminate(); } catch { /* noop */ } };
+    return () => {
+      try {
+        w.terminate();
+      } catch {
+        /* noop */
+      }
+    };
   }, []);
 
   return (
     <SystemThemeProvider>
       <CssBaseline />
-      <Container maxWidth="lg" sx={{ py: 3 }}>
+      <Container maxWidth="xl" sx={{ py: 3 }}>
         <Base
           title="Tiled Palette Quantize"
           sidebar={
@@ -31,7 +37,12 @@ const App = () => {
               disabled={q.busy}
             />
           }>
-          <PreviewPane busy={q.busy} progress={q.progress} drawToCanvas={q.drawToCanvas} />
+          <PreviewPane
+            busy={q.busy}
+            progress={q.progress}
+            drawToCanvas={q.drawToCanvas}
+            palettes={q.palettes ?? undefined}
+          />
         </Base>
       </Container>
     </SystemThemeProvider>

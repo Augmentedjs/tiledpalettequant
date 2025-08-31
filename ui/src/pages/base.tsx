@@ -41,7 +41,7 @@ export const Base = ({
   leading,
   sidebar,
   children,
-  maxWidth = "lg",
+  maxWidth = "xl",
   showAppBarDivider = true,
   sidebarWidth = 320
 }: BaseProps) => (
