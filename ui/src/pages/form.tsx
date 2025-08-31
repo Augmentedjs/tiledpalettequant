@@ -64,7 +64,7 @@ export const BigForm = ({
   const fileRef = useRef<HTMLInputElement | null>(null);
   const set = makeSetter(settings, onChange);
 
-  const paletteChoices = useMemo(() => [1, 2, 3, 4], []);
+  const paletteChoices = useMemo(() => [1, 2, 3, 4, 5, 6, 7, 8], []);
   const colorsChoices = useMemo(() => Array.from({ length: 16 }, (_, i) => i + 1), []);
   const bpcChoices = useMemo(() => [1, 2, 3, 4, 5, 6, 7, 8] as const, []);
 
@@ -166,6 +166,18 @@ export const BigForm = ({
             </Select>
             <FormHelperText>Genesis ≈ 3 bpc</FormHelperText>
           </FormControl>
+          <FormControl sx={{ width: { xs: "100%", sm: 200 } }}>
+            <FormLabel>Fraction of pixels</FormLabel>
+            <Slider
+              value={settings.fractionOfPixels ?? 1}
+              min={0.05}
+              max={1}
+              step={0.05}
+              onChange={(_, v) => set("fractionOfPixels", Array.isArray(v) ? v[0] : v)}
+              valueLabelDisplay="auto"
+            />
+            <FormHelperText>Sampling ratio (legacy default 1.0)</FormHelperText>
+          </FormControl>
         </Stack>
       </Section>
 
@@ -221,31 +233,28 @@ export const BigForm = ({
 
       <Divider flexItem />
 
-      {/* Color 0 policy */}
-      <Section title="Color 0 (index 0) policy">
+      <Section title="Color index zero behaviour">
         <FormControl component="fieldset" sx={{ mb: 1 }}>
           <RadioGroup
-            value={settings.color0Behaviour ?? settings.index0}
+            value={settings.color0Behaviour ?? "unique"}
             onChange={(e) => set("color0Behaviour", e.target.value as Color0Behaviour)}>
-            <FormControlLabel value="unique" control={<Radio />} label="Unique per palette" />
-            <FormControlLabel value="shared" control={<Radio />} label="Shared across palettes" />
+            <FormControlLabel value="unique" control={<Radio />} label="unique" />
+            <FormControlLabel value="shared" control={<Radio />} label="shared color:" />
             <FormControlLabel
               value="transparentFromTransparent"
               control={<Radio />}
-              label="Transparent from transparent pixels"
+              label="transparent, from transparent pixels"
             />
             <FormControlLabel
               value="transparentFromColor"
               control={<Radio />}
-              label="Transparent from this color…"
+              label="transparent color:"
             />
           </RadioGroup>
-          <FormHelperText>
-            Mirrors legacy <code>colorZeroBehaviour</code>.
-          </FormHelperText>
         </FormControl>
 
-        {settings.color0Behaviour === "transparentFromColor" && (
+        {(settings.color0Behaviour === "shared" ||
+          settings.color0Behaviour === "transparentFromColor") && (
           <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">
             <TextField
               label="Pick color"
@@ -298,31 +307,6 @@ export const BigForm = ({
       </Section>
 
       <Divider flexItem />
-
-      {/* Palette policy (kept for compatibility) */}
-      <Section title="Palette Policy">
-        <FormControl component="fieldset" disabled={disabled}>
-          <RadioGroup
-            row
-            name="index0"
-            value={settings.index0}
-            onChange={(e) => set("index0", e.target.value as TpqSettings["index0"])}>
-            <FormControlLabel
-              value="unique"
-              control={<Radio />}
-              label="Index-0 unique per palette"
-            />
-            <FormControlLabel
-              value="shared"
-              control={<Radio />}
-              label="Index-0 shared across palettes"
-            />
-          </RadioGroup>
-          <FormHelperText>
-            For backgrounds, “unique” is typical. Keep index ordering stable for SGDK.
-          </FormHelperText>
-        </FormControl>
-      </Section>
 
       {/* Actions */}
       <Stack direction="row" spacing={1} sx={{ pt: 1, flexWrap: "wrap" }}>

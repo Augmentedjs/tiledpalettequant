@@ -7,8 +7,9 @@ export const GENESIS_DEFAULTS: TpqSettings = {
   bitsPerChannel: 3,
   dither: false,
   index0: "unique",
+  fractionOfPixels: 1,
   ditherMode: "off",
-  ditherWeight: 1.0,
+  ditherWeight: 1,
   ditherPattern: "diag4",
   color0Behaviour: "unique",
   color0: { r: 0, g: 0, b: 0 }
@@ -44,7 +45,12 @@ const LEGACY = {
     Horizontal2: 4,
     Vertical2: 5
   },
-  Action: { UpdateProgress: 1, UpdateQuantizedImage: 2, UpdatePalettes: 3, DoneQuantization: 4 }
+  Action: {
+    UpdateProgress: 1,
+    UpdateQuantizedImage: 2,
+    UpdatePalettes: 3,
+    DoneQuantization: 4
+  }
 } as const;
 
 export const useQuantizer = () => {
@@ -84,39 +90,23 @@ export const useQuantizer = () => {
     return ctx.getImageData(0, 0, bmp.width, bmp.height);
   }, []);
 
-  // Legacy enums mapping (numbers expected by worker.js)
-  // Use the top-level LEGACY constant defined above.
-
-  const mapDither = (mode: DitherMode | undefined, simpleFlag: boolean) =>
+  const mapDither = (mode?: DitherMode, simpleFlag?: boolean) =>
     mode
       ? { off: LEGACY.Dither.Off, fast: LEGACY.Dither.Fast, slow: LEGACY.Dither.Slow }[mode]
       : simpleFlag
       ? LEGACY.Dither.Fast
-      : LEGACY.Dither.Off; // compat: `dither` => Fast
+      : LEGACY.Dither.Off;
 
-  const mapPattern = (p: DitherPattern | undefined) =>
-    ({
-      diag4: LEGACY.DitherPattern.Diagonal4,
-      horiz4: LEGACY.DitherPattern.Horizontal4,
-      vert4: LEGACY.DitherPattern.Vertical4,
-      diag2: LEGACY.DitherPattern.Diagonal2,
-      horiz2: LEGACY.DitherPattern.Horizontal2,
-      vert2: LEGACY.DitherPattern.Vertical2
-    }[p ?? "diag4"]);
+  const mapPattern = (p?: DitherPattern) =>
+    (({ diag4: 0, horiz4: 1, vert4: 2, diag2: 3, horiz2: 4, vert2: 5 } as const)[p ?? "diag4"]);
 
-  const mapColor0Behaviour = (beh: Color0Behaviour | undefined, simple: Index0Mode) =>
-    beh
-      ? {
-          unique: LEGACY.ColorZeroBehaviour.Unique,
-          shared: LEGACY.ColorZeroBehaviour.Shared,
-          transparentFromTransparent: LEGACY.ColorZeroBehaviour.TransparentFromTransparent,
-          transparentFromColor: LEGACY.ColorZeroBehaviour.TransparentFromColor
-        }[beh]
-      : simple === "unique"
-      ? LEGACY.ColorZeroBehaviour.Unique
-      : LEGACY.ColorZeroBehaviour.Shared;
+  const mapColor0 = (beh?: Color0Behaviour) =>
+    (({ unique: 0, shared: 1, transparentFromTransparent: 2, transparentFromColor: 3 } as const)[
+      beh ?? "unique"
+    ]);
 
-  const clamp8 = (n: number) => Math.max(0, Math.min(255, Math.round(n || 0)));
+  const clamp01 = (n: number | undefined, d = 1) => Math.max(0, Math.min(1, n ?? d));
+  const c8 = (n: number | undefined) => Math.max(0, Math.min(255, Math.round(n ?? 0)));
 
   const toLegacyOptions = (s: TpqSettings) => ({
     tileWidth: s.tileSize,
@@ -124,17 +114,15 @@ export const useQuantizer = () => {
     numPalettes: s.palettes,
     colorsPerPalette: s.colorsPerPalette,
     bitsPerChannel: s.bitsPerChannel,
-    fractionOfPixels: 1.0,
-    dither: mapDither(s.ditherMode, !!s.dither),
-    ditherWeight:
-      typeof s.ditherWeight === "number" ? Math.max(0, Math.min(1, s.ditherWeight)) : 1.0,
+    fractionOfPixels: clamp01(s.fractionOfPixels, 1), // NEW
+
+    dither: mapDither(s.ditherMode, s.dither),
+    ditherWeight: clamp01(s.ditherWeight, 1),
     ditherPattern: mapPattern(s.ditherPattern),
-    colorZeroBehaviour: mapColor0Behaviour(s.color0Behaviour, s.index0),
-    colorZeroValue: [
-      clamp8(s.color0?.r ?? 0),
-      clamp8(s.color0?.g ?? 0),
-      clamp8(s.color0?.b ?? 0)
-    ] as [number, number, number]
+
+    colorZeroBehaviour: mapColor0(s.color0Behaviour),
+    // Used for 'shared' and 'transparentFromColor'; ignored by the other modes
+    colorZeroValue: [c8(s.color0?.r), c8(s.color0?.g), c8(s.color0?.b)] as [number, number, number]
   });
 
   // run quantizer via worker
