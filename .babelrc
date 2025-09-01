@@ -1,0 +1,42 @@
+{
+  "presets": [
+    ["@babel/preset-env", {
+      "targets": {
+        "browsers": ["firefox >= 110", "chrome >= 110", "ios >= 17"]
+      },
+      "debug": true,
+      "modules": false
+    },
+    "@babel/preset-react"
+    ]
+  ],
+  "plugins": [
+    "@babel/plugin-transform-react-jsx",
+    ["transform-class-properties", { "spec": true }],
+    "babel-plugin-remove-template-literals-whitespace"
+  ],
+  "comments": false,
+  "env": {
+    "production": {
+      "plugins": [
+        ["transform-remove-console", { "exclude": [ "error", "warn"] }]
+      ]
+    },
+    "test": {
+      "plugins": [
+        ["transform-remove-console", { "exclude": [ "info", "error", "warn"] }]
+      ],
+      "presets": [
+        ["@babel/preset-env", {
+          "targets": {
+            "node": "18"
+          },
+          "debug": true,
+          "modules": false
+        },
+        "@babel/preset-react"
+        ]
+      ]
+    }
+  }
+}

@@ -1,0 +1,44 @@
+{
+  "name": "Augmentedjs/tiledpalettequant",
+  "version": "1.0.0",
+  "description": "Tile-aware palette quantization for retro consoles (e.g., Sega Genesis / Mega Drive).",
+  "main": "index.mjs",
+  "type": "module",
+  "scripts": {
+    "start": "NODE_ENV=production node ./index.mjs",
+    "start:dev": "NODE_ENV=development node ./index.mjs",
+    "clean": "rm -rf node_modules",
+    "reinstall": "npm run clean && npm install --verbose"
+  },
+  "keywords": [
+    "typescript",
+    "google-cloud",
+    "app-engine"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Augmentedjs/tiledpalettequant.git"
+  },
+  "author": "Bob Warren <jedi.master@augmentedjs.com>",
+  "license": "Apache-2.0",
+  "engines": {
+    "node": ">=22",
+    "npm": ">=10"
+  },
+  "dependencies": {
+    "cache-express": "^1.0.2",
+    "compression": "^1.8.0",
+    "dotenv": "^16.6.1",
+    "express": "^4.21.2",
+    "express-partials": "^0.3.0",
+    "favicons": "^7.2.0",
+    "helmet": "^8.1.0",
+    "method-override": "^3.0.0",
+    "serve-favicon": "^2.5.1",
+    "sharp": "^0.33.0"
+  },
+  "bugs": {
+    "url": "https://github.com/Augmentedjs/tiledpalettequant/issues"
+  },
+  "homepage": "https://github.com/Augmentedjs/tiledpalettequant"
+}

@@ -1,0 +1,53 @@
+{
+  "name": "Augmentedjs/tiledpalettequant",
+  "version": "1.0.0",
+  "description": "Tile-aware palette quantization for retro consoles (e.g., Sega Genesis / Mega Drive).",
+  "main": "service/index.mjs",
+  "type": "module",
+  "scripts": {
+    "start": "NODE_ENV=production cd service && npm start",
+    "dev": "cd ui && npm start",
+    "install": "./install.sh",
+    "reinstall": "./reinstall.sh",
+    "build": "./build.sh",
+    "test": "mocha test/**/*.test.mjs",
+    "deploy": "gcloud config set project tiledpalettequant && gcloud app deploy",
+    "docker-build": "docker compose -p augmentedjs/tiledpalettequant build",
+    "docker-run": "DOCKER_BUILDKIT=1 docker compose up -d",
+    "docker-down": "docker compose down",
+    "docker-stop": "docker stop augmentedjs/tiledpalettequant",
+    "docker-restart": "docker restart augmentedjs/tiledpalettequant",
+    "docker-teardown": "./teardown.sh"
+  },
+  "keywords": [
+    "react",
+    "typescript",
+    "google-cloud",
+    "app-engine"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Augmentedjs/tiledpalettequant.git"
+  },
+  "author": "Bob Warren <jedi.master@augmentedjs.com>",
+  "license": "Apache-2.0",
+  "engines": {
+    "node": ">=22",
+    "npm": ">=10"
+  },
+  "devDependencies": {
+    "chai": "^5.2.1",
+    "chai-http": "^5.1.2",
+    "dotenv": "^16.6.1",
+    "mocha": "^11.7.1",
+    "typescript": "^5.8.3"
+  },
+  "bugs": {
+    "url": "https://github.com/Augmentedjs/tiledpalettequant/issues"
+  },
+  "homepage": "https://github.com/Augmentedjs/tiledpalettequant",
+  "cloud-repo-tools": {
+    "requiresKeyFile": true,
+    "requiresProjectId": true
+  }
+}
