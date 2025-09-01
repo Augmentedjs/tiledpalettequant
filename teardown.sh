@@ -1,15 +1,15 @@
 #!/bin/bash
 
-# Stop and remove containers related to your project
-echo "Stopping and removing care-time-tracking-app containers..."
-docker compose -p care-time-tracking-app down --volumes
+# Stop and remove containers related to the project
+echo "Stopping and removing tiledpalettequant containers..."
+docker compose -p  down --volumes
 
 # Remove images associated with the project
-echo "Removing care-time-tracking-app images..."
-docker rmi $(docker images "care-time-tracking-app*" -q) --force
+echo "Removing tiledpalettequant images..."
+docker rmi $(docker images "tiledpalettequant*" -q) --force
 
-# Remove orphaned volumes (optional cleanup)
+# Remove orphaned volumes
 echo "Removing orphaned volumes..."
 docker volume prune --force
 
-echo "Teardown for care-time-tracking-app complete!"
+echo "Teardown for tiledpalettequant complete!"
