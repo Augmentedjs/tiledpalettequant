@@ -15,20 +15,6 @@ export const GENESIS_DEFAULTS: TpqSettings = {
   color0: { r: 0, g: 0, b: 0 }
 };
 
-type LegacyQuantOptions = {
-  tileWidth: number;
-  tileHeight: number;
-  numPalettes: number;
-  colorsPerPalette: number;
-  bitsPerChannel: number;
-  fractionOfPixels: number;
-  colorZeroBehaviour: number;
-  colorZeroValue: [number, number, number];
-  dither: number;
-  ditherWeight: number;
-  ditherPattern: number;
-};
-
 type LegacyIndexed = {
   width: number;
   height: number;
@@ -86,6 +72,112 @@ export const useQuantizer = () => {
       }
     };
   }, []);
+
+  // --- helpers ---------------------------------------------------------------
+  const baseNameFrom = (n: string | null) =>
+    (n ?? "image").replace(/\.[a-z0-9]+$/i, "").trim() || "image";
+
+  const download = (blob: Blob, filename: string) => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1500);
+  };
+
+  // paletteData (B,G,R,0 × 256) → [16][3] RGB for palette block p
+  const extractPaletteRGB = (paletteData: Uint8ClampedArray | undefined, p: number): number[][] => {
+    const out: number[][] = [];
+    if (!paletteData) return Array.from({ length: 16 }, () => [0, 0, 0]);
+    const stride = 4,
+      perBlock = 16;
+    for (let c = 0; c < 16; c++) {
+      const i = (p * perBlock + c) * stride;
+      const b = paletteData[i] ?? 0;
+      const g = paletteData[i + 1] ?? 0;
+      const r = paletteData[i + 2] ?? 0;
+      out.push([r, g, b]);
+    }
+    return out;
+  };
+
+  const savePaletteGPL = useCallback(
+    (p: number) => {
+      if (!indexed) return alert("Run quantizer first.");
+      const rgb = extractPaletteRGB(indexed.paletteData, p);
+      const name = `${baseNameFrom(sourceName)}-p${p}.gpl`;
+      const lines = ["GIMP Palette", `Name: ${baseNameFrom(sourceName)} P${p}`, "Columns: 16", "#"];
+      for (let i = 0; i < 16; i++) {
+        const [r, g, b] = rgb[i];
+        lines.push(`${r} ${g} ${b}`);
+      }
+      const blob = new Blob([lines.join("\n") + "\n"], { type: "text/plain" });
+      download(blob, name);
+    },
+    [indexed, sourceName]
+  );
+
+  const savePaletteJASC = useCallback(
+    (p: number) => {
+      if (!indexed) return alert("Run quantizer first.");
+      const rgb = extractPaletteRGB(indexed.paletteData, p);
+      const name = `${baseNameFrom(sourceName)}-p${p}.pal`;
+      // JASC-PAL header: magic, version, count, then R G B per line (0..255)
+      const lines = ["JASC-PAL", "0100", "16"];
+      for (let i = 0; i < 16; i++) {
+        const [r, g, b] = rgb[i];
+        lines.push(`${r} ${g} ${b}`);
+      }
+      const blob = new Blob([lines.join("\n") + "\n"], { type: "text/plain" });
+      download(blob, name);
+    },
+    [indexed, sourceName]
+  );
+
+  const savePaletteACT = useCallback(
+    (p: number) => {
+      if (!indexed) return alert("Run quantizer first.");
+      const rgb = extractPaletteRGB(indexed.paletteData, p);
+      const name = `${baseNameFrom(sourceName)}-p${p}.act`;
+      // ACT = 256 * (R,G,B) bytes. We’ll fill first 16, rest zero.
+      const bytes = new Uint8Array(256 * 3);
+      for (let i = 0; i < 16; i++) {
+        const [r, g, b] = rgb[i];
+        const o = i * 3;
+        bytes[o] = r;
+        bytes[o + 1] = g;
+        bytes[o + 2] = b;
+      }
+      download(new Blob([bytes], { type: "application/octet-stream" }), name);
+    },
+    [indexed, sourceName]
+  );
+
+  const savePaletteC = useCallback(
+    (p: number) => {
+      if (!indexed) return alert("Run quantizer first.");
+      const rgb = extractPaletteRGB(indexed.paletteData, p);
+      const base = baseNameFrom(sourceName);
+      const name = `${base}-p${p}.c`;
+      // SGDK-friendly: use RGB24_TO_VDPCOLOR so you don’t hand-pack CRAM
+      const lines = [
+        "#include <genesis.h>",
+        "",
+        `const u16 ${base.replace(/[^a-zA-Z0-9_]/g, "_")}_pal${p}[16] = {`
+      ];
+      for (let i = 0; i < 16; i++) {
+        const [r, g, b] = rgb[i];
+        const comma = i < 15 ? "," : "";
+        lines.push(`  RGB24_TO_VDPCOLOR(${r}, ${g}, ${b})${comma}`);
+      }
+      lines.push("};", "");
+      download(new Blob([lines.join("\n")], { type: "text/x-c" }), name);
+    },
+    [indexed, sourceName]
+  );
 
   // paletteData = 256 entries of [B,G,R,0]; build [palette][color][RGB]
   const palettesFromBMP = (
@@ -363,7 +455,7 @@ export const useQuantizer = () => {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = filename; // <— correct extension & name
+      a.download = filename;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -387,6 +479,10 @@ export const useQuantizer = () => {
     preview,
     palettes,
     saveBMP,
+    savePaletteGPL,
+    savePaletteJASC,
+    savePaletteACT,
+    savePaletteC,
     // util for preview
     drawToCanvas
   };

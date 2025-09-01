@@ -45,6 +45,10 @@ const App = () => {
             palettes={q.palettes ?? undefined}
             palettesCount={q.state.palettes}
             colorsPerPalette={q.state.colorsPerPalette}
+            onSaveGpl={q.savePaletteGPL}
+            onSavePalJasc={q.savePaletteJASC}
+            onSaveAct={q.savePaletteACT}
+            onSaveC={q.savePaletteC}
           />
         </Base>
       </Container>
