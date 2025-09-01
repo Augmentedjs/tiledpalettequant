@@ -75,6 +75,11 @@ export const BigForm = ({
     if (fileRef.current) fileRef.current.value = "";
   };
 
+  const handleRun = () => {
+    window.scrollTo(0, 0);
+    if (onRun) onRun();
+  }
+
   return (
     <Box
       component="form"
@@ -310,7 +315,7 @@ export const BigForm = ({
 
       {/* Actions */}
       <Stack direction="row" spacing={1} sx={{ pt: 1, flexWrap: "wrap" }}>
-        <Button variant="contained" onClick={onRun} disabled={disabled}>
+        <Button variant="contained" onClick={handleRun} disabled={disabled}>
           Run Quantizer
         </Button>
         <Button
