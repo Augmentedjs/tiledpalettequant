@@ -173,8 +173,6 @@ export const BigForm = ({
               ))}
             </Select>
             <FormHelperText>Genesis ≈ 3 bpc</FormHelperText>
-          {/* </FormControl>
-          <FormControl disabled={disabled} sx={{ width: "100%" }}> */}
             <FormLabel>Fraction of pixels</FormLabel>
             <Slider
               value={settings.fractionOfPixels ?? 1}
@@ -185,7 +183,7 @@ export const BigForm = ({
               onChange={(_, v) => set("fractionOfPixels", Array.isArray(v) ? v[0] : v)}
               valueLabelDisplay="auto"
             />
-            <FormHelperText>Sampling ratio (legacy default 1.0)</FormHelperText>
+            <FormHelperText>Sampling ratio (classic default 1.0)</FormHelperText>
           </FormControl>
         </Stack>
       </Section>
@@ -205,7 +203,7 @@ export const BigForm = ({
               <FormControlLabel value="fast" control={<Radio />} label="Fast" />
               <FormControlLabel value="slow" control={<Radio />} label="Slow" />
             </RadioGroup>
-            <FormHelperText>Matches legacy Off / Fast / Slow</FormHelperText>
+            <FormHelperText>Choose compute amount</FormHelperText>
           </FormControl>
 
           <Box sx={{ width: "90%" }}>
@@ -236,7 +234,7 @@ export const BigForm = ({
               <MenuItem value="horiz2">Horizontal 2</MenuItem>
               <MenuItem value="vert2">Vertical 2</MenuItem>
             </Select>
-            <FormHelperText>Same patterns as legacy</FormHelperText>
+            <FormHelperText>Choose dither pattern</FormHelperText>
           </FormControl>
         </Stack>
       </Section>
