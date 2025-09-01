@@ -41,7 +41,10 @@ const App = () => {
             busy={q.busy}
             progress={q.progress}
             drawToCanvas={q.drawToCanvas}
+            onSaveBmp={q.saveBMP}
             palettes={q.palettes ?? undefined}
+            palettesCount={q.state.palettes}
+            colorsPerPalette={q.state.colorsPerPalette}
           />
         </Base>
       </Container>

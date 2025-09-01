@@ -29,6 +29,15 @@ type LegacyQuantOptions = {
   ditherPattern: number;
 };
 
+type LegacyIndexed = {
+  width: number;
+  height: number;
+  data: Uint8ClampedArray; // RGBA for on-screen preview
+  totalPaletteColors: number; // numPalettes * colorsPerPalette
+  paletteData: Uint8ClampedArray; // 256 * 4 entries, B,G,R,0
+  colorIndexes: Uint8ClampedArray; // bmpWidth * height, bottom-up rows
+};
+
 const LEGACY = {
   ColorZeroBehaviour: {
     Unique: 0,
@@ -55,13 +64,13 @@ const LEGACY = {
 
 export const useQuantizer = () => {
   const [state, setState] = useState<TpqSettings>(GENESIS_DEFAULTS);
-
   const [source, setSource] = useState<ImageData | null>(null);
   const [preview, setPreview] = useState<ImageData | null>(null);
   const [palettes, setPalettes] = useState<number[][][] | null>(null);
   const [progress, setProgress] = useState(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [indexed, setIndexed] = useState<LegacyIndexed | null>(null);
   const workerRef = useRef<Worker | null>(null);
 
   // create/destroy worker
@@ -154,6 +163,18 @@ export const useQuantizer = () => {
             case LEGACY.Action.UpdateProgress:
               setProgress(Math.max(0, Math.min(100, Number(data.progress) || 0)));
               break;
+
+            case LEGACY.Action.UpdateQuantizedImage: {
+              // Worker posts an object with {width,height,data,totalPaletteColors,paletteData,colorIndexes}
+              const q = data.imageData;
+              if (q && q.width && q.height && q.data?.length) {
+                setIndexed(q as LegacyIndexed); // keep the indexed payload for saving
+                const imgData =
+                  q instanceof ImageData ? q : new ImageData(q.data, q.width, q.height);
+                setPreview(imgData); // draw to canvas
+              }
+              break;
+            }
             case LEGACY.Action.UpdateQuantizedImage: {
               const q = data.imageData; // may be plain object { width, height, data: Uint8ClampedArray }
               const imgData = q instanceof ImageData ? q : new ImageData(q.data, q.width, q.height);
@@ -214,6 +235,86 @@ export const useQuantizer = () => {
     [preview]
   );
 
+  const saveBMP = useCallback(
+    (name = "tpq_indexed.bmp") => {
+      if (!indexed) return;
+
+      const { width: w, height: h, totalPaletteColors, paletteData, colorIndexes } = indexed;
+
+      if (totalPaletteColors > 256) {
+        // Can’t store >256 colors in an 8bpp BMP.
+        // You could show a toast instead; this keeps it simple.
+        alert(
+          `Indexed BMP requires ≤256 colors (got ${totalPaletteColors}). Reduce palettes/colors.`
+        );
+        return;
+      }
+
+      const bmpWidth = Math.ceil(w / 4) * 4; // rows padded to 4
+      const headerSize = 14 + 40; // FILE + INFO
+      const paletteSize = 256 * 4; // always 256 entries (B,G, R,0)
+      const pixelDataSize = bmpWidth * h; // 1 byte per pixel (already bottom-up)
+      const fileSize = headerSize + paletteSize + pixelDataSize;
+
+      const buf = new ArrayBuffer(fileSize);
+      const dv = new DataView(buf);
+      let off = 0;
+
+      // BITMAPFILEHEADER
+      dv.setUint8(off++, 0x42); // 'B'
+      dv.setUint8(off++, 0x4d); // 'M'
+      dv.setUint32(off, fileSize, true);
+      off += 4;
+      dv.setUint16(off, 0, true);
+      off += 2;
+      dv.setUint16(off, 0, true);
+      off += 2;
+      dv.setUint32(off, headerSize + paletteSize, true);
+      off += 4;
+
+      // BITMAPINFOHEADER (V3)
+      dv.setUint32(off, 40, true);
+      off += 4; // biSize
+      dv.setInt32(off, w, true);
+      off += 4; // biWidth
+      dv.setInt32(off, h, true);
+      off += 4; // biHeight (positive => bottom-up)
+      dv.setUint16(off, 1, true);
+      off += 2; // biPlanes
+      dv.setUint16(off, 8, true);
+      off += 2; // biBitCount
+      dv.setUint32(off, 0, true);
+      off += 4; // biCompression = BI_RGB
+      dv.setUint32(off, pixelDataSize, true);
+      off += 4; // biSizeImage
+      dv.setInt32(off, 2835, true);
+      off += 4; // X ppm (~72 DPI)
+      dv.setInt32(off, 2835, true);
+      off += 4; // Y ppm
+      dv.setUint32(off, 256, true);
+      off += 4; // biClrUsed (palette has 256 slots)
+      dv.setUint32(off, 0, true);
+      off += 4; // biClrImportant
+
+      // Palette: worker already gives B,G,R,0 in length 1024
+      new Uint8Array(buf, headerSize, paletteSize).set(paletteData);
+
+      // Pixel indices (already padded & bottom-up from worker)
+      new Uint8Array(buf, headerSize + paletteSize, pixelDataSize).set(colorIndexes);
+
+      const blob = new Blob([buf], { type: "image/bmp" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = name;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1500);
+    },
+    [indexed]
+  );
+
   return {
     // settings
     state,
@@ -228,6 +329,7 @@ export const useQuantizer = () => {
     // outputs
     preview,
     palettes,
+    saveBMP,
     // util for preview
     drawToCanvas
   };
