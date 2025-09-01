@@ -1,7 +1,7 @@
 # Tiled Palette Quant (React)
 
 High-color background quantization for **SEGA Genesis / Mega Drive** workflows.
-Fork of the original *tiledpalettequant* tool, rewritten with **React + TypeScript + MUI 7**, bundled via **Webpack 5**, and wired to the legacy quantizer in a Web Worker.
+Fork of the original *tiledpalettequant* tool, rewritten with **React + TypeScript + MUI 7**, bundled via **Webpack 5**, and wired to the original quantizer in a Web Worker.
 
 > Designed for SGDK 2.11+ on real hardware. Exports **8-bpp indexed BMP** with correct palette order and 4-byte padded, bottom-up pixel rows (BI\_RGB / Windows V3).
 
@@ -12,15 +12,14 @@ Fork of the original *tiledpalettequant* tool, rewritten with **React + TypeScri
 * **Genesis-friendly** quantization:
 
   * Tile size (default **8×8**)
-  * Up to **4 palettes × 16 colors** (Genesis limits), legacy UI supports up to **8** palettes
+  * Up to **4 palettes × 16 colors** (Genesis limits), Original UI supports up to **8** palettes
   * Bits per channel (typ. **3 bpc**)
   * Dithering: **Off / Fast / Slow**, weight and pattern
   * Color index **0 policy**: *unique*, *shared*, *transparent from transparent*, *transparent from color (+ picker)*
   * **Fraction of pixels** sampling (0–1) to accelerate large images
 * Live **preview** and a **palette legend** showing P0..Pn with 16 entries each (index 0 outlined).
 * **Export: Indexed 8-bpp BMP** (exact palette order; no RGB re-mapping).
-* **Optional palette sorting on save** (per palette): darkest→lightest or light→dark, with pixel indices remapped to preserve the image.
-* **Legacy-style filenames**: `basename-8x8-4p16c-s.bmp` (`u` = unique, `s` = shared, `t` = transparent).
+* **Original-style filenames**: `basename-8x8-4p16c-s.bmp` (`u` = unique, `s` = shared, `t` = transparent).
 * **OS theme** auto (prefers-color-scheme) with light/dark Material UI theme.
 
 ---
@@ -29,7 +28,7 @@ Fork of the original *tiledpalettequant* tool, rewritten with **React + TypeScri
 
 ### Prereqs
 
-* Node.js **18+** (recommended) and npm
+* Node.js **22+** (recommended) and npm
 * (Optional) Docker 24+ if you want to run in containers
 
 ### Install & run (local)
@@ -51,7 +50,7 @@ npm run build
 
 This produces a static bundle in `ui/dist/`. Serve it with any static server (e.g., Node/Express, nginx, or `npm run serve` if you’ve added one).
 
-### Docker (optional)
+### Docker
 
 If you’re using the compose setup:
 
@@ -83,9 +82,6 @@ docker compose down
 6. **Save BMP (Indexed 8-bpp)** to export SGDK-ready art.
 
    * Filenames: `basename-8x8-4p16c-{u|s|t}.bmp`
-   * Optional palette sort on save (see below).
-
-> ⚠️ Export requires **≤256 total colors** (`palettes × colorsPerPalette ≤ 256`). If you exceed this, export is blocked.
 
 ---
 
@@ -97,18 +93,6 @@ docker compose down
 * **Global color index** = `palette * 16 + color`.
 * The “transparent” policies choose which **index** to use (BMP has no alpha channel in the palette). Transparency is handled on the engine side (e.g., SGDK using index 0).
 
-### Optional: palette sorting on save
-
-To keep your workflow consistent (e.g., “brightest = index 15”), the exporter can **reorder each palette by luminance** and remap pixel indices accordingly. Index 0 is **pinned by default** to preserve transparency semantics.
-
-Current options:
-
-* `None` (default) – no reordering
-* **Dark → Light** (`lumaAsc`)
-* **Light → Dark** (`lumaDesc`)
-
-> We only reorder **within each 16-entry palette block**; tile palette assignment (which block a tile uses) is unaffected.
-
 ---
 
 ## 🧩 Settings Reference
@@ -116,7 +100,7 @@ Current options:
 | Setting                        | Notes / Typical                                                                               |
 | ------------------------------ | --------------------------------------------------------------------------------------------- |
 | **Tile size**                  | Genesis backgrounds: **8×8**                                                                  |
-| **Palettes**                   | Genesis max **4** (legacy UI supports **up to 8** for experimentation)                        |
+| **Palettes**                   | Genesis max **4** (Original UI supports **up to 8** for experimentation)                        |
 | **Colors / palette**           | Genesis max **16**                                                                            |
 | **Bits / channel**             | Approx Genesis **3**                                                                          |
 | **Dither mode**                | Off / Fast / Slow                                                                             |
@@ -152,8 +136,8 @@ repo/
 ```
 
 * **UI (React + MUI 7)** keeps all settings in `TpqSettings`.
-* **Worker** runs the quantization (legacy `worker.js` migrated into `ui/src/workers/legacy/worker-legacy.js`).
-* **Bridge** (`useQuantizer`) translates settings → legacy numeric options, receives:
+* **Worker** runs the quantization (original `worker.js` migrated into `ui/src/workers/legacy/worker-legacy.js`).
+* **Bridge** (`useQuantizer`) translates settings → original numeric options, receives:
 
   * preview RGBA (for canvas),
   * final **paletteData** (B,G,R,0 × 256),
@@ -165,73 +149,34 @@ repo/
 
 ## 🛠️ Troubleshooting
 
-**“TypeScript emitted no output”**
-Make sure `ui/tsconfig.json` includes:
-
-```json
-{
-  "compilerOptions": {
-    "module": "ESNext",
-    "target": "ES2020",
-    "lib": ["ES2023", "DOM", "WebWorker"],
-    "moduleResolution": "Bundler",
-    "jsx": "react-jsx",
-    "noEmit": false,
-    "strict": true,
-    "skipLibCheck": true
-  },
-  "include": ["src", "src/@types"]
-}
-```
-
-**“Cannot find module …/quantize”**
-Either add an alias (`handlers/*`) in Webpack + tsconfig, or correct the relative path to your `handlers/` or keep everything inside `ui/`.
-
-**Worker doesn’t update the canvas**
-Ensure the message handler converts the payload to `ImageData`:
-
-```ts
-const q = data.imageData;
-const imgData = (q instanceof ImageData) ? q : new ImageData(q.data, q.width, q.height);
-setPreview(imgData);
-```
-
 **GIMP palette order looks different from preview**
 The legend now derives from **`paletteData`**, which is exactly what the BMP writes. In GIMP’s *Colormap* dialog, set **Columns = 16** to align with the “P0..Pn” blocks.
 
-**Export saves RGB PNG instead of indexed BMP**
-The **Save** button triggers `saveBMP()` and writes **8-bpp indexed** BMP with your **paletteData** + **colorIndexes**. If you see PNG: your button still calls an older canvas save—replace it with `onClick={() => onSaveBmp()}`.
-
-**Filename is `{object Object}.bmp`**
-Call save with a lambda: `onClick={() => onSaveBmp()}` to avoid passing the click event.
-
 ---
 
-## 🔧 Config / Scripts (suggested)
+## 🔧 Config / Scripts
 
-Common `package.json` scripts:
+`package.json` scripts:
 
 ```json
 {
   "scripts": {
-    "dev": "webpack serve --config webpack.config.cjs --mode development",
-    "build": "webpack --config webpack.config.cjs --mode production",
-    "serve": "node server.js"
-  }
+    "start": "NODE_ENV=production cd service && npm start",
+    "dev": "cd ui && npm start",
+    "install": "./install.sh",
+    "reinstall": "./reinstall.sh",
+    "build": "./build.sh",
+    "test": "mocha test/**/*.test.mjs",
+    "deploy": "gcloud config set project tiledpalettequant && gcloud app deploy",
+    "docker-build": "docker compose -p augmentedjs/tiledpalettequant build",
+    "docker-run": "DOCKER_BUILDKIT=1 docker compose up -d",
+    "docker-down": "docker compose down",
+    "docker-stop": "docker stop augmentedjs/tiledpalettequant",
+    "docker-restart": "docker restart augmentedjs/tiledpalettequant",
+    "docker-teardown": "./teardown.sh"
+  },
 }
 ```
-
-If you use Docker, your `docker-compose.yml` likely exposes port **8080** and binds the repo as a volume for live reload.
-
----
-
-## 🗺️ Roadmap
-
-* Export **.pal/.c** for SGDK (CRAM & palette tables).
-* Optional **VRAM/tile** dumps and tilemap scaffolding.
-* Batch mode (CLI) with the same settings.
-* Explore **Sega CD** large-asset streaming (per your project scope).
-
 ---
 
 ## 🙏 Credits
@@ -247,7 +192,7 @@ MIT © 2025 Augmentedjs
 
 See [LICENSE](./LICENSE) for full text.
 
-> Portions of the legacy quantizer are derived from the original *tiledpalettequant* tool by rilden. Attribution retained.
+> Portions of the Original quantizer are derived from the original *tiledpalettequant* tool by rilden. Attribution retained.
 
 ---
 
