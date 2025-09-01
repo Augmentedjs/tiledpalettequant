@@ -1,289 +1,266 @@
-# Tiled Palette Quant (TPQ) — Dockerized Fork
-
-Tile-aware palette quantization for retro consoles (e.g., Sega Genesis / Mega Drive).
-This fork adds a **zero-dependency Docker setup** and handy **start/stop scripts** so you can run the tool locally any time.
-
-> Original project: [https://github.com/rilden/tiledpalettequant](https://github.com/rilden/tiledpalettequant)
-> Live page (upstream): [https://rilden.github.io/tiledpalettequant/](https://rilden.github.io/tiledpalettequant/)
-
-## What this tool does (quick theory)
-
-* TPQ takes a source image and quantizes it into **N palettes** with **M colors each** (e.g., **4×16** for Genesis), honoring a **tile size** (usually **8×8**).
-* It outputs a **paletted image** where every 8×8 tile uses **one** 16-entry block of the global colormap:
-  `PNG_index = palette_id * 16 + color_index_in_palette`
-  For Genesis, that’s 4 palettes × 16 colors = 64 global entries.
-* This layout lets your importer (e.g., SGDK’s rescomp) deduce per-tile palette selection from pixel indices.
-
-Why you sometimes get “palette index” errors after editing:
-
-* If you paint inside one tile with colors from two different 16-entry blocks, the tile no longer has a single palette → error.
-* If your editor “optimizes” the palette (reorders or removes unused entries), the `palette_id*16 + color` encoding breaks → error.
+Here’s a complete, drop-in **README.md** you can put at the repo root. It reflects the current React/Webpack/TypeScript app, the legacy worker bridge, the palette legend, and the **indexed 8-bpp BMP** export with optional palette sorting and the legacy filename scheme.
 
 ---
 
-## Contents
+# Tiled Palette Quant (React)
 
-* [Quick Start](#quick-start)
-* [Development vs Production](#development-vs-production)
-* [Scripts](#scripts)
+High-color background quantization for **SEGA Genesis / Mega Drive** workflows.
+Fork of the original *tiledpalettequant* tool, rewritten with **React + TypeScript + MUI 7**, bundled via **Webpack 5**, and wired to the legacy quantizer in a Web Worker.
 
-  * [`start.sh`](#startsh)
-  * [`teardown.sh`](#teardownsh)
-* [Configuration](#configuration)
-
-  * [`docker-compose.yml`](#docker-composeyml)
-  * [`nginx.conf`](#nginxconf)
-  * [`Dockerfile` (prod)](#dockerfile-prod)
-* [Using the App](#using-the-app)
-* [Editing Pipeline That Won’t Break Palettes](#editing-pipeline-that-wont-break-palettes)
-* [Optional: Palette Fix & Tile Checker (tools/)](#optional-palette-fix--tile-checker-toolst)
-* [Troubleshooting](#troubleshooting)
-* [Credits & License](#credits--license)
+> Designed for SGDK 2.11+ on real hardware. Exports **8-bpp indexed BMP** with correct palette order and 4-byte padded, bottom-up pixel rows (BI\_RGB / Windows V3).
 
 ---
 
-## Quick Start
+## ✨ Features
 
-Prereqs: Docker Desktop (or Docker Engine + Compose), Bash.
+* **Genesis-friendly** quantization:
+
+  * Tile size (default **8×8**)
+  * Up to **4 palettes × 16 colors** (Genesis limits), legacy UI supports up to **8** palettes
+  * Bits per channel (typ. **3 bpc**)
+  * Dithering: **Off / Fast / Slow**, weight and pattern
+  * Color index **0 policy**: *unique*, *shared*, *transparent from transparent*, *transparent from color (+ picker)*
+  * **Fraction of pixels** sampling (0–1) to accelerate large images
+* Live **preview** and a **palette legend** showing P0..Pn with 16 entries each (index 0 outlined).
+* **Export: Indexed 8-bpp BMP** (exact palette order; no RGB re-mapping).
+* **Optional palette sorting on save** (per palette): darkest→lightest or light→dark, with pixel indices remapped to preserve the image.
+* **Legacy-style filenames**: `basename-8x8-4p16c-s.bmp` (`u` = unique, `s` = shared, `t` = transparent).
+* **OS theme** auto (prefers-color-scheme) with light/dark Material UI theme.
+
+---
+
+## 🚀 Quick Start
+
+### Prereqs
+
+* Node.js **18+** (recommended) and npm
+* (Optional) Docker 24+ if you want to run in containers
+
+### Install & run (local)
 
 ```bash
-# Clone your fork
-git clone https://github.com/Augmentedjs/tiledpalettequant
-cd tiledpalettequant
-
-# Start in dev mode (bind-mounts repo)
-./start.sh
-
-# Open http://localhost:8080
+cd ui
+npm ci
+npm run dev
 ```
 
-Stop everything:
+Open [http://localhost:8080](http://localhost:8080) (or whatever your dev server prints).
+
+### Build production
 
 ```bash
-./teardown.sh
+cd ui
+npm run build
 ```
 
-Change port:
+This produces a static bundle in `ui/dist/`. Serve it with any static server (e.g., Node/Express, nginx, or `npm run serve` if you’ve added one).
+
+### Docker (optional)
+
+If you’re using the compose setup:
 
 ```bash
-PORT=5173 ./start.sh
+docker compose up --build
+# open http://localhost:8080
 ```
 
-Production image (no bind mount):
+Tear down:
 
 ```bash
-./start.sh --prod --rebuild
+docker compose down
 ```
 
 ---
 
-## Development vs Production
+## 🧭 Using the App
 
-* **Dev (default):**
+1. **Choose Image…** (PNG/JPG/BMP). The raw image renders immediately.
+2. Adjust **Quantization** (tile size, palettes, colors/palette, bits/channel).
+3. Optionally tune **Dithering** (mode/weight/pattern) and **Fraction of pixels**.
+4. Set **Color index zero behaviour**:
 
-  * Uses the official `nginx:alpine` image.
-  * **Bind-mounts** your working tree into `/usr/share/nginx/html`.
-  * Edits show up on refresh (no build step).
+   * **unique** – index 0 per palette
+   * **shared** – a single color across palettes (pick it)
+   * **transparent from transparent pixels**
+   * **transparent from color** – pick the key color
+5. Click **Run Quantizer**. Preview updates; palette legend reflects the **export** palette (what GIMP/SGDK will see).
+6. **Save BMP (Indexed 8-bpp)** to export SGDK-ready art.
 
-* **Prod (`--prod`):**
+   * Filenames: `basename-8x8-4p16c-{u|s|t}.bmp`
+   * Optional palette sort on save (see below).
 
-  * Builds a tiny static image with your files baked in.
-  * Great for pushing to a registry or running without local files.
-
----
-
-## Scripts
-
-### `start.sh`
-
-Starts the site in **dev** (default) or **prod** mode.
-
-**Options**
-
-```
---prod            Use the 'prod' profile (builds image; no bind mount)
---rebuild         Pass --build to Compose
---port <num>      Port to expose (default: 8080 or $PORT)
---logs            Follow logs after start
---open            Open browser (macOS 'open')
--h, --help        Show help
-```
-
-**Examples**
-
-```bash
-./start.sh                          # dev on 8080
-./start.sh --port 9000              # dev on 9000
-./start.sh --prod --rebuild --logs  # build and run prod, follow logs
-```
-
-### `teardown.sh`
-
-Stops and removes containers for this project.
-
-**Options**
-
-```
---volumes         Also remove volumes (Compose mode only)
---images          Remove images built by this project (Compose mode only)
---prune           After cleanup, run 'docker system prune -f' (dangling only)
--h, --help        Show help
-```
-
-**Examples**
-
-```bash
-./teardown.sh                 # stop/remove containers
-./teardown.sh --volumes       # also remove volumes
-./teardown.sh --images        # also remove locally built images
-./teardown.sh --prune         # prune dangling resources after
-```
+> ⚠️ Export requires **≤256 total colors** (`palettes × colorsPerPalette ≤ 256`). If you exceed this, export is blocked.
 
 ---
 
-## Configuration
+## 💾 Export details (SGDK-friendly)
 
-These files live at the repo root.
+* **Indexed BMP (8-bpp)**, **BI\_RGB** (no compression), Windows V3 header.
+* Palette has **256 entries** (B,G,R,0). Only the first `palettes × 16` are relevant.
+* Pixels are **1 byte per pixel**, **bottom-up** rows, **width padded** to a multiple of 4 bytes (BMP standard).
+* **Global color index** = `palette * 16 + color`.
+* The “transparent” policies choose which **index** to use (BMP has no alpha channel in the palette). Transparency is handled on the engine side (e.g., SGDK using index 0).
 
-### `docker-compose.yml`
+### Optional: palette sorting on save
 
-* **web** (dev): serves your working tree via Nginx using a **bind mount**.
-* **prod**: builds a small static image (no bind mount); enabled via a Compose **profile**.
+To keep your workflow consistent (e.g., “brightest = index 15”), the exporter can **reorder each palette by luminance** and remap pixel indices accordingly. Index 0 is **pinned by default** to preserve transparency semantics.
 
-```yaml
-version: "3.9"
+Current options:
 
-services:
-  web:
-    image: nginx:1.27-alpine
-    container_name: tpq-web
-    ports:
-      - "${PORT:-8080}:80"
-    volumes:
-      - ./:/usr/share/nginx/html:ro
-      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+* `None` (default) – no reordering
+* **Dark → Light** (`lumaAsc`)
+* **Light → Dark** (`lumaDesc`)
 
-  prod:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: tpq-prod
-    ports:
-      - "${PORT:-8080}:80"
-    profiles: ["prod"]
+> We only reorder **within each 16-entry palette block**; tile palette assignment (which block a tile uses) is unaffected.
+
+---
+
+## 🧩 Settings Reference
+
+| Setting                        | Notes / Typical                                                                               |
+| ------------------------------ | --------------------------------------------------------------------------------------------- |
+| **Tile size**                  | Genesis backgrounds: **8×8**                                                                  |
+| **Palettes**                   | Genesis max **4** (legacy UI supports **up to 8** for experimentation)                        |
+| **Colors / palette**           | Genesis max **16**                                                                            |
+| **Bits / channel**             | Approx Genesis **3**                                                                          |
+| **Dither mode**                | Off / Fast / Slow                                                                             |
+| **Dither weight**              | 0..1                                                                                          |
+| **Dither pattern**             | diag4 / horiz4 / vert4 / diag2 / horiz2 / vert2                                               |
+| **Fraction of pixels**         | 0..1 sampling ratio (1 = use all pixels)                                                      |
+| **Color index zero behaviour** | unique / shared (with color) / transparentFromTransparent / transparentFromColor (with color) |
+
+---
+
+## 🧱 Architecture
+
+```
+repo/
+├─ ui/
+│  ├─ src/
+│  │  ├─ components/
+│  │  │  ├─ app.tsx              ← top-level layout
+│  │  │  ├─ previewPane.tsx      ← canvas + palette legend + save
+│  │  │  └─ PaletteLegend.tsx    ← “P0..Pn” 16× swatches per palette
+│  │  ├─ pages/
+│  │  │  └─ form.tsx             ← settings UI (MUI 7, Boxes not tables)
+│  │  ├─ hooks/
+│  │  │  └─ useQuantizer.ts      ← state, image IO, worker bridge, save BMP
+│  │  ├─ workers/
+│  │  │  └─ legacy/worker-legacy.js  ← original quantizer (unchanged core)
+│  │  └─ @types/
+│  │     └─ tpq.d.ts             ← global types (no imports)
+│  ├─ webpack.config.cjs          ← Webpack 5 + ts-loader
+│  └─ tsconfig.json               ← ESNext modules, DOM + WebWorker libs
+└─ handlers/
+   └─ quantize.ts (optional stub while porting)
 ```
 
-### `nginx.conf`
+* **UI (React + MUI 7)** keeps all settings in `TpqSettings`.
+* **Worker** runs the quantization (legacy `worker.js` migrated into `ui/src/workers/legacy/worker-legacy.js`).
+* **Bridge** (`useQuantizer`) translates settings → legacy numeric options, receives:
 
-A minimal `server {}` block.
-**Do not** include `mime.types` or `default_type` here — the base image already loads those globally.
+  * preview RGBA (for canvas),
+  * final **paletteData** (B,G,R,0 × 256),
+  * final **colorIndexes** (8-bpp, padded, bottom-up),
+  * optional `palettes` snapshot during iteration.
+* **Palette legend** derives from **paletteData** so it always matches the exported BMP (what GIMP sees).
 
-```nginx
-server {
-  listen 80;
-  server_name _;
+---
 
-  root  /usr/share/nginx/html;
-  index index.html;
+## 🛠️ Troubleshooting
 
-  charset utf-8;
+**“TypeScript emitted no output”**
+Make sure `ui/tsconfig.json` includes:
 
-  location / {
-    try_files $uri $uri/ /index.html;
-    add_header Cache-Control "no-store" always;
+```json
+{
+  "compilerOptions": {
+    "module": "ESNext",
+    "target": "ES2020",
+    "lib": ["ES2023", "DOM", "WebWorker"],
+    "moduleResolution": "Bundler",
+    "jsx": "react-jsx",
+    "noEmit": false,
+    "strict": true,
+    "skipLibCheck": true
+  },
+  "include": ["src", "src/@types"]
+}
+```
+
+**“Cannot find module …/quantize”**
+Either add an alias (`handlers/*`) in Webpack + tsconfig, or correct the relative path to your `handlers/` or keep everything inside `ui/`.
+
+**Worker doesn’t update the canvas**
+Ensure the message handler converts the payload to `ImageData`:
+
+```ts
+const q = data.imageData;
+const imgData = (q instanceof ImageData) ? q : new ImageData(q.data, q.width, q.height);
+setPreview(imgData);
+```
+
+**GIMP palette order looks different from preview**
+The legend now derives from **`paletteData`**, which is exactly what the BMP writes. In GIMP’s *Colormap* dialog, set **Columns = 16** to align with the “P0..Pn” blocks.
+
+**Export saves RGB PNG instead of indexed BMP**
+The **Save** button triggers `saveBMP()` and writes **8-bpp indexed** BMP with your **paletteData** + **colorIndexes**. If you see PNG: your button still calls an older canvas save—replace it with `onClick={() => onSaveBmp()}`.
+
+**Filename is `{object Object}.bmp`**
+Call save with a lambda: `onClick={() => onSaveBmp()}` to avoid passing the click event.
+
+---
+
+## 🔧 Config / Scripts (suggested)
+
+Common `package.json` scripts:
+
+```json
+{
+  "scripts": {
+    "dev": "webpack serve --config webpack.config.cjs --mode development",
+    "build": "webpack --config webpack.config.cjs --mode production",
+    "serve": "node server.js"
   }
 }
 ```
 
-### `Dockerfile` (prod)
-
-Copies your site into the image and uses the same `nginx.conf`.
-
-```dockerfile
-FROM nginx:1.27-alpine
-
-COPY . /usr/share/nginx/html
-COPY nginx.conf /etc/nginx/conf.d/default.conf
-```
+If you use Docker, your `docker-compose.yml` likely exposes port **8080** and binds the repo as a volume for live reload.
 
 ---
 
-## Using the App
+## 🗺️ Roadmap
 
-Open `http://localhost:<PORT>`.
-
-Common settings for Sega Genesis backgrounds:
-
-* **Tile size:** `8 × 8`
-* **Palettes:** `4`
-* **Colors per palette:** `16`
-* **Index 0 policy:** often **Unique** (per-palette color 0) for backgrounds
-* **Dithering:** taste/preference
-* **Bits per channel:** Genesis ≈ 3bpc; you can set/approximate to see closer hues
-
-**Output notes**
-
-* Click the generated image to save — upstream exports **BMP** by default (which preserves palette order nicely).
-* If you later need PNGs, be careful (see next section) or use the optional fixer tool.
+* Export **.pal/.c** for SGDK (CRAM & palette tables).
+* Optional **VRAM/tile** dumps and tilemap scaffolding.
+* Batch mode (CLI) with the same settings.
+* Explore **Sega CD** large-asset streaming (per your project scope).
 
 ---
 
-## Editing Pipeline That Won’t Break Palettes
+## 🙏 Credits
 
-If you use GIMP/other editors:
-
-1. Keep the image in **Indexed** mode at all times (don’t convert to RGB).
-2. Open **Colormap** dialog and remember the rule:
-
-   * Entries **0–15** → palette 0
-   * **16–31** → palette 1
-   * **32–47** → palette 2
-   * **48–63** → palette 3
-3. Enable an **8×8 grid** and **Snap to Grid**. Each tile must use colors from **one** block only.
-4. When exporting PNG, **do not optimize/reorder** palette or “remove unused colors”.
-5. If anything gets messed up (palette entries reordered), fix with the **tools** below or just re-export BMP from the app and use that.
-
-**SGDK tip:** rescomp infers the tile’s palette from pixel indices (`palette = index >> 4`). Mixed blocks within a tile or a shuffled palette will cause errors.
+* Original quantizer idea/tool by **rilden** (tiledpalettequant).
+* This React rewrite, SGDK export path, and workflow glue by **@Augmentedjs** and contributors.
 
 ---
 
-## Optional: Palette Fix & Tile Checker (`tools/`)
+## 📝 License
 
-If you want a safety net, add a tiny Python tool (Pillow) to your repo under `tools/`:
+MIT © 2025 Augmentedjs
 
-* **`export-palette IN.bmp ref.json`** — saves the exact 64-entry palette order from a TPQ BMP
-* **`bmp2png IN.bmp OUT.png`** — converts BMP → PNG **without changing palette order or indices**
-* **`reindex edited.png ref.json fixed.png`** — reorders any shuffled PNG back to the original palette order
-* **`check fixed.png`** — validates that **every 8×8 tile** uses a **single** palette block
-* **`reblock edited.png forced.png`** — forces each tile to its **majority** block (as a last resort)
+See [LICENSE](./LICENSE) for full text.
 
-> If you want, I’ll drop these into the repo in a `tools/` folder ready to go.
+> Portions of the legacy quantizer are derived from the original *tiledpalettequant* tool by rilden. Attribution retained.
 
 ---
 
-## Troubleshooting
+### Support / Questions
 
-**Browser downloads the HTML instead of rendering**
-You likely defined a `types { ... }` block that **overrode** the default MIME table, or re-included `mime.types`.
-Use the minimal `nginx.conf` above (no extra `types`, no `default_type`).
+Open an issue, or ping with:
 
-**Nginx startup error: “`default_type` directive is duplicate”**
-The base image already sets it. Remove `default_type` from your `nginx.conf`.
+* A sample input image,
+* The settings you used,
+* A screenshot of the legend vs what you see in GIMP/SGDK.
 
-**macOS Bash error: “`rebuild_flag[@]: unbound variable`”**
-Older macOS Bash + `set -u`. The provided `start.sh` avoids empty-array expansions.
-
-**Port already in use**
-Start with a different port: `PORT=5173 ./start.sh` or stop the other process.
-
-**SGDK palette index errors after editing**
-You either mixed palette blocks within a tile or your editor reordered the palette.
-Use the **BMP output** directly, or run the **reindex**/**check** helper scripts.
-
----
-
-## Credits & License
-
-* Original TPQ by **rilden** (see upstream repo for license).
-* This fork adds Docker, scripts, and docs for easier local hosting and editing workflows.
-* If you rediscover bugs in the quantizer itself, please open issues here and/or upstream.
+Happy quantizing! 🎮🟣🟢🟡🟠

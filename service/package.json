@@ -20,7 +20,7 @@
     "url": "git+https://github.com/Augmentedjs/tiledpalettequant.git"
   },
   "author": "Bob Warren <jedi.master@augmentedjs.com>",
-  "license": "Apache-2.0",
+  "license": "MIT",
   "engines": {
     "node": ">=22",
     "npm": ">=10"
