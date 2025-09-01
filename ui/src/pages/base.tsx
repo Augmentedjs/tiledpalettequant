@@ -120,7 +120,7 @@ export const Base = ({
             gap: 1
           }}>
           <Typography variant="caption" color="text.secondary">
-            © {new Date().getFullYear()} TPQ (React)
+            © {new Date().getFullYear()} Augmentedjs.com LLC
           </Typography>
           <Typography variant="caption" color="text.secondary">
             Genesis-friendly 4×16 palette blocks · 8×8 tiles

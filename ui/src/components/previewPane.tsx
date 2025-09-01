@@ -34,7 +34,7 @@ export const PreviewPane = ({
         <PaletteLegend palettes={palettes} palettesCount={palettesCount} colorsPerPalette={colorsPerPalette} />
       </Box>
       <Stack direction="row" spacing={1}>
-        <Button variant="outlined" onClick={onSaveBmp} disabled={busy}>
+        <Button variant="outlined" onClick={() => onSaveBmp()} disabled={busy}>
           Save BMP (Indexed 8-bpp)
         </Button>
       </Stack>

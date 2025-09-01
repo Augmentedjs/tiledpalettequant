@@ -89,7 +89,7 @@ export const BigForm = ({
       {/* Source image */}
       <Section title="Source Image">
         <Stack direction="row" spacing={1} flexWrap="wrap">
-          <Button variant="contained" size="small" onClick={pickFile} disabled={disabled}>
+          <Button variant="contained" size="small" fullWidth={true} onClick={pickFile} disabled={disabled}>
             Choose Image…
           </Button>
           <Typography variant="caption" color="text.secondary" sx={{ alignSelf: "center" }}>
@@ -119,15 +119,16 @@ export const BigForm = ({
             }
             slotProps={{ htmlInput: { min: 1, step: 1 } }}
             disabled={disabled}
-            sx={{ width: { xs: "100%", sm: 160 } }}
+            fullWidth={true}
           />
 
-          <FormControl sx={{ width: { xs: "100%", sm: 160 } }} disabled={disabled}>
+          <FormControl disabled={disabled} sx={{ width: "100%" }}>
             <InputLabel id="palettes-label">Palettes</InputLabel>
             <Select
               labelId="palettes-label"
               label="Palettes"
               value={settings.palettes}
+              fullWidth={true}
               onChange={(e) => set("palettes", Number(e.target.value))}>
               {paletteChoices.map((n) => (
                 <MenuItem key={n} value={n}>
@@ -138,12 +139,13 @@ export const BigForm = ({
             <FormHelperText>Genesis uses up to 4</FormHelperText>
           </FormControl>
 
-          <FormControl sx={{ width: { xs: "100%", sm: 200 } }} disabled={disabled}>
+          <FormControl disabled={disabled} sx={{ width: "100%" }}>
             <InputLabel id="cpp-label">Colors / palette</InputLabel>
             <Select
               labelId="cpp-label"
               label="Colors / palette"
               value={settings.colorsPerPalette}
+              fullWidth={true}
               onChange={(e) => set("colorsPerPalette", Number(e.target.value))}>
               {colorsChoices.map((n) => (
                 <MenuItem key={n} value={n}>
@@ -154,12 +156,13 @@ export const BigForm = ({
             <FormHelperText>Genesis max is 16</FormHelperText>
           </FormControl>
 
-          <FormControl sx={{ width: { xs: "100%", sm: 200 } }} disabled={disabled}>
+          <FormControl disabled={disabled} sx={{ width: "100%" }}>
             <InputLabel id="bpc-label">Bits / channel</InputLabel>
             <Select
               labelId="bpc-label"
               label="Bits / channel"
               value={settings.bitsPerChannel}
+              fullWidth={true}
               onChange={(e) =>
                 set("bitsPerChannel", Number(e.target.value) as TpqSettings["bitsPerChannel"])
               }>
@@ -170,14 +173,15 @@ export const BigForm = ({
               ))}
             </Select>
             <FormHelperText>Genesis ≈ 3 bpc</FormHelperText>
-          </FormControl>
-          <FormControl sx={{ width: { xs: "100%", sm: 200 } }}>
+          {/* </FormControl>
+          <FormControl disabled={disabled} sx={{ width: "100%" }}> */}
             <FormLabel>Fraction of pixels</FormLabel>
             <Slider
               value={settings.fractionOfPixels ?? 1}
               min={0.05}
               max={1}
               step={0.05}
+              
               onChange={(_, v) => set("fractionOfPixels", Array.isArray(v) ? v[0] : v)}
               valueLabelDisplay="auto"
             />
@@ -190,8 +194,8 @@ export const BigForm = ({
 
       {/* Dithering */}
       <Section title="Dithering">
-        <Stack direction="row" spacing={2} flexWrap="wrap">
-          <FormControl component="fieldset">
+        <Stack direction="row" spacing={2} gap={2} flexWrap="wrap">
+          <FormControl component="fieldset" sx={{ width: "100%" }}>
             <FormLabel>Dither mode</FormLabel>
             <RadioGroup
               row
@@ -204,7 +208,7 @@ export const BigForm = ({
             <FormHelperText>Matches legacy Off / Fast / Slow</FormHelperText>
           </FormControl>
 
-          <Box sx={{ minWidth: 240 }}>
+          <Box sx={{ width: "90%" }}>
             <FormLabel>Weight</FormLabel>
             <Slider
               value={settings.ditherWeight ?? 1}
@@ -217,12 +221,13 @@ export const BigForm = ({
             <FormHelperText>Strength (0–1)</FormHelperText>
           </Box>
 
-          <FormControl sx={{ minWidth: 220 }}>
+          <FormControl sx={{ width: "100%" }}>
             <InputLabel id="dpat">Pattern</InputLabel>
             <Select
               labelId="dpat"
               label="Pattern"
               value={settings.ditherPattern ?? "diag4"}
+              fullWidth={true}
               onChange={(e) => set("ditherPattern", e.target.value as DitherPattern)}>
               <MenuItem value="diag4">Diagonal 4</MenuItem>
               <MenuItem value="horiz4">Horizontal 4</MenuItem>
@@ -260,18 +265,18 @@ export const BigForm = ({
 
         {(settings.color0Behaviour === "shared" ||
           settings.color0Behaviour === "transparentFromColor") && (
-          <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">
+          <Stack direction="row" spacing={2} useFlexGap alignItems="center" flexWrap="wrap">
             <TextField
               label="Pick color"
               type="color"
               value={rgbToHex(settings.color0 ?? { r: 0, g: 0, b: 0 })}
+              fullWidth={true}
               onChange={(e) => set("color0", hexToRgb(e.target.value))}
-              sx={{ width: 140 }}
             />
             <TextField
               label="R"
               type="number"
-              sx={{ width: 100 }}
+              sx={{ width: 60 }}
               value={settings.color0?.r ?? 0}
               onChange={(e) =>
                 set("color0", {
@@ -284,7 +289,7 @@ export const BigForm = ({
             <TextField
               label="G"
               type="number"
-              sx={{ width: 100 }}
+              sx={{ width: 60 }}
               value={settings.color0?.g ?? 0}
               onChange={(e) =>
                 set("color0", {
@@ -297,7 +302,7 @@ export const BigForm = ({
             <TextField
               label="B"
               type="number"
-              sx={{ width: 100 }}
+              sx={{ width: 60 }}
               value={settings.color0?.b ?? 0}
               onChange={(e) =>
                 set("color0", {
@@ -314,12 +319,13 @@ export const BigForm = ({
       <Divider flexItem />
 
       {/* Actions */}
-      <Stack direction="row" spacing={1} sx={{ pt: 1, flexWrap: "wrap" }}>
-        <Button variant="contained" onClick={handleRun} disabled={disabled}>
+      <Stack direction="row" spacing={1} alignContent={"center"} sx={{ pt: 1, flexWrap: "wrap" }}>
+        <Button variant="contained" fullWidth={true} onClick={handleRun} disabled={disabled}>
           Run Quantizer
         </Button>
         <Button
           variant="text"
+          fullWidth={true}
           onClick={() =>
             onChange({
               tileSize: 8,

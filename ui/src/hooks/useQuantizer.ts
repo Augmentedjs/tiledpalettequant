@@ -64,6 +64,7 @@ const LEGACY = {
 
 export const useQuantizer = () => {
   const [state, setState] = useState<TpqSettings>(GENESIS_DEFAULTS);
+  const [sourceName, setSourceName] = useState<string | null>(null);
   const [source, setSource] = useState<ImageData | null>(null);
   const [preview, setPreview] = useState<ImageData | null>(null);
   const [palettes, setPalettes] = useState<number[][][] | null>(null);
@@ -214,10 +215,11 @@ export const useQuantizer = () => {
   const loadFile = useCallback(
     async (file: File) => {
       setError(null);
+      setSourceName(file.name);
       const img = await fileToImageData(file);
       setSource(img);
-      setPreview(img); // immediate raw preview
-      void run(img); // auto-run (optional)
+      setPreview(img);
+      void run(img);
       return img;
     },
     [fileToImageData, run]
@@ -235,34 +237,51 @@ export const useQuantizer = () => {
     [preview]
   );
 
+  // Build names like "basename-8x8-4p16c-s.bmp"
+  // u = unique, s = shared, t = transparent (*either* transparent mode)
+  const buildBmpName = (baseName: string | null, s: TpqSettings) => {
+    const base = (baseName ?? "image").replace(/\.[a-z0-9]+$/i, "").trim() || "image";
+    const tile = `${s.tileSize}x${s.tileSize}`;
+    const pc = `${s.palettes}p${s.colorsPerPalette}c`;
+
+    // prefer explicit color0Behaviour; fall back to index0
+    const beh = s.color0Behaviour ?? (s.index0 === "shared" ? "shared" : "unique");
+
+    let suffix: "u" | "s" | "t";
+    if (beh === "unique") suffix = "u";
+    else if (beh === "shared") suffix = "s";
+    /* transparentFromTransparent | transparentFromColor */ else suffix = "t";
+
+    return `${base}-${tile}-${pc}-${suffix}.bmp`;
+  };
+
   const saveBMP = useCallback(
-    (name = "tpq_indexed.bmp") => {
+    (name?: string) => {
       if (!indexed) return;
 
-      const { width: w, height: h, totalPaletteColors, paletteData, colorIndexes } = indexed;
+      const filename = name ?? buildBmpName(sourceName, state); // <— here
 
+      const { width: w, height: h, totalPaletteColors, paletteData, colorIndexes } = indexed;
       if (totalPaletteColors > 256) {
-        // Can’t store >256 colors in an 8bpp BMP.
-        // You could show a toast instead; this keeps it simple.
         alert(
           `Indexed BMP requires ≤256 colors (got ${totalPaletteColors}). Reduce palettes/colors.`
         );
         return;
       }
 
-      const bmpWidth = Math.ceil(w / 4) * 4; // rows padded to 4
-      const headerSize = 14 + 40; // FILE + INFO
-      const paletteSize = 256 * 4; // always 256 entries (B,G, R,0)
-      const pixelDataSize = bmpWidth * h; // 1 byte per pixel (already bottom-up)
+      const bmpWidth = Math.ceil(w / 4) * 4;
+      const headerSize = 14 + 40;
+      const paletteSize = 256 * 4;
+      const pixelDataSize = bmpWidth * h;
       const fileSize = headerSize + paletteSize + pixelDataSize;
 
       const buf = new ArrayBuffer(fileSize);
       const dv = new DataView(buf);
       let off = 0;
 
-      // BITMAPFILEHEADER
-      dv.setUint8(off++, 0x42); // 'B'
-      dv.setUint8(off++, 0x4d); // 'M'
+      // FILE HEADER
+      dv.setUint8(off++, 0x42);
+      dv.setUint8(off++, 0x4d);
       dv.setUint32(off, fileSize, true);
       off += 4;
       dv.setUint16(off, 0, true);
@@ -272,47 +291,45 @@ export const useQuantizer = () => {
       dv.setUint32(off, headerSize + paletteSize, true);
       off += 4;
 
-      // BITMAPINFOHEADER (V3)
+      // INFO HEADER (V3)
       dv.setUint32(off, 40, true);
-      off += 4; // biSize
+      off += 4;
       dv.setInt32(off, w, true);
-      off += 4; // biWidth
+      off += 4;
       dv.setInt32(off, h, true);
-      off += 4; // biHeight (positive => bottom-up)
+      off += 4; // bottom-up
       dv.setUint16(off, 1, true);
-      off += 2; // biPlanes
+      off += 2;
       dv.setUint16(off, 8, true);
-      off += 2; // biBitCount
+      off += 2; // 8bpp indexed
       dv.setUint32(off, 0, true);
-      off += 4; // biCompression = BI_RGB
+      off += 4; // BI_RGB
       dv.setUint32(off, pixelDataSize, true);
-      off += 4; // biSizeImage
+      off += 4;
       dv.setInt32(off, 2835, true);
-      off += 4; // X ppm (~72 DPI)
+      off += 4;
       dv.setInt32(off, 2835, true);
-      off += 4; // Y ppm
+      off += 4;
       dv.setUint32(off, 256, true);
-      off += 4; // biClrUsed (palette has 256 slots)
+      off += 4;
       dv.setUint32(off, 0, true);
-      off += 4; // biClrImportant
+      off += 4;
 
-      // Palette: worker already gives B,G,R,0 in length 1024
+      // Palette (B,G,R,0) and pixel indices (already bottom-up & padded)
       new Uint8Array(buf, headerSize, paletteSize).set(paletteData);
-
-      // Pixel indices (already padded & bottom-up from worker)
       new Uint8Array(buf, headerSize + paletteSize, pixelDataSize).set(colorIndexes);
 
       const blob = new Blob([buf], { type: "image/bmp" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = name;
+      a.download = filename; // <— correct extension & name
       document.body.appendChild(a);
       a.click();
       a.remove();
       setTimeout(() => URL.revokeObjectURL(url), 1500);
     },
-    [indexed]
+    [indexed, sourceName, state]
   );
 
   return {
