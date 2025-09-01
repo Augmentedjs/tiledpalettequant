@@ -1,7 +1,7 @@
 # Stage 1: Build the UI
 FROM node:22-alpine AS builder
 
-WORKDIR /cargiving-app
+WORKDIR /tpq-app
 
 ENV IN_DOCKER="true"
 
@@ -29,4 +29,4 @@ FROM busybox AS final
 VOLUME /public
 
 # Copy build output from the builder stage to the volume
-COPY --from=builder /cargiving-app/public /public
+COPY --from=builder /tpq-app/public /public

@@ -87,6 +87,29 @@ export const useQuantizer = () => {
     };
   }, []);
 
+  // paletteData = 256 entries of [B,G,R,0]; build [palette][color][RGB]
+  const palettesFromBMP = (
+    paletteData: Uint8ClampedArray,
+    numPalettes: number,
+    colorsPerPalette: number
+  ): number[][][] => {
+    const out: number[][][] = [];
+    const stride = 4;
+    const block = 16; // 16 colors per palette block in BMP layout
+    for (let p = 0; p < numPalettes; p++) {
+      const pal: number[][] = [];
+      for (let c = 0; c < colorsPerPalette; c++) {
+        const i = (p * block + c) * stride;
+        const b = paletteData[i] ?? 0;
+        const g = paletteData[i + 1] ?? 0;
+        const r = paletteData[i + 2] ?? 0;
+        pal.push([r, g, b]); // convert to RGB for UI
+      }
+      out.push(pal);
+    }
+    return out;
+  };
+
   // image loader -> ImageData
   const fileToImageData = useCallback(async (file: File) => {
     const buf = await file.arrayBuffer();
@@ -161,6 +184,23 @@ export const useQuantizer = () => {
         w.onmessage = (ev: MessageEvent<any>) => {
           const data = ev.data;
           switch (data?.action) {
+            case LEGACY.Action.UpdateQuantizedImage: {
+              const q = data.imageData; // legacy payload with width,height,data,totalPaletteColors,paletteData,colorIndexes
+              if (q && q.width && q.height && q.data?.length) {
+                setIndexed(q);
+                const imgData =
+                  q instanceof ImageData ? q : new ImageData(q.data, q.width, q.height);
+                setPreview(imgData);
+
+                // ← keep the legend synced with what we actually export
+                if (q.paletteData) {
+                  setPalettes(
+                    palettesFromBMP(q.paletteData, state.palettes, state.colorsPerPalette)
+                  );
+                }
+              }
+              break;
+            }
             case LEGACY.Action.UpdateProgress:
               setProgress(Math.max(0, Math.min(100, Number(data.progress) || 0)));
               break;

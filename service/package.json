@@ -31,9 +31,11 @@
     "dotenv": "^16.6.1",
     "express": "^4.21.2",
     "express-partials": "^0.3.0",
+    "favicons": "^7.2.0",
     "helmet": "^8.1.0",
     "method-override": "^3.0.0",
-    "serve-favicon": "^2.5.1"
+    "serve-favicon": "^2.5.1",
+    "sharp": "^0.33.0"
   },
   "bugs": {
     "url": "https://github.com/Augmentedjs/tiledpalettequant/issues"

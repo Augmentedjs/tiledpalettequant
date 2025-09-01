@@ -105,34 +105,9 @@ const build = {
       }
     }),
 
-    // Generate Favicons and Apple Touch Icons
-    new FaviconsWebpackPlugin({
-      logo: LOGO,
-      prefix: "images/",
-      inject: true,
-      cache: true,
-      favicons: {
-        appName: "Tile Palette Quant",
-        appDescription: "Tile-aware palette quantization for retro consoles (e.g., Sega Genesis / Mega Drive).",
-        developerName: "Bob Warren",
-        developerURL: "https://www.augmentedjs.com",
-        background: "#3A8B02", // Background color for icons
-        theme_color: "#000000", // Theme color for the app
-        icons: {
-          android: true, // Generate Android homescreen icon
-          appleIcon: true, // Generate Apple touch icons
-          appleStartup: true, // Generate Apple splash screens
-          favicons: true, // Generate regular favicons
-          firefox: false,
-          windows: false,
-          yandex: false
-        }
-      }
-    }),
-
     // Generate PWA Manifest
     new WebpackPwaManifest({
-      name: "Tile Palette Quant",
+      name: "Tile Palette Quantize",
       short_name: "tpq",
       description: "Tile-aware palette quantization for retro consoles (e.g., Sega Genesis / Mega Drive).",
       background_color: "#ffffff",

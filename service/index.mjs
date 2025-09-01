@@ -81,8 +81,9 @@ app.get("/about", cache({ timeOut: 60000 }), (req, res) => {
 app.use("/", express.static(path.join(__dirname, "../public")));
 
 // Start the server
-app.listen(process.env.PORT, async () => {
+const port = (process.env.PORT) ? process.env.PORT : 8080;
+app.listen(port, async () => {
   console.info(
-    `${CONSTANTS.ABOUT} listening at port ${process.env.PORT} in Env: ${process.env.NODE_ENV}`
+    `${CONSTANTS.ABOUT} listening at port ${port} in Env: ${process.env.NODE_ENV}`
   );
 });
