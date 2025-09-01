@@ -7,9 +7,9 @@ type Props = {
   progress: number;
   drawToCanvas: (el: HTMLCanvasElement) => void;
   onSavePng?: () => void;
-  palettes?: number[][][]; // from worker
-  palettesCount?: number; // settings.palettes
-  colorsPerPalette?: number; // settings.colorsPerPalette
+  palettes?: number[][][];
+  palettesCount?: number;
+  colorsPerPalette?: number;
 };
 
 export const PreviewPane = ({
@@ -26,6 +26,41 @@ export const PreviewPane = ({
   useEffect(() => {
     if (ref.current) drawToCanvas(ref.current);
   }, [drawToCanvas]);
+
+  const savePNG = () => {
+    if (onSavePng) return onSavePng();
+
+    const canvas = ref.current;
+    if (!canvas) return;
+
+    const filename = `tpq_${new Date().toISOString().replace(/[:.]/g, "-")}.png`;
+
+    const downloadBlobUrl = (url: string) => {
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1500);
+    };
+
+    // Prefer toBlob if available; otherwise use data URL
+    if (typeof (canvas as HTMLCanvasElement).toBlob === "function") {
+      (canvas as HTMLCanvasElement).toBlob((blob) => {
+        if (blob) {
+          downloadBlobUrl(URL.createObjectURL(blob));
+        } else {
+          // Safari can return null; fallback to dataURL
+          const dataUrl = canvas.toDataURL("image/png");
+          downloadBlobUrl(dataUrl);
+        }
+      }, "image/png");
+    } else {
+      const dataUrl = canvas.toDataURL("image/png");
+      downloadBlobUrl(dataUrl);
+    }
+  };
 
   return (
     <Stack spacing={2}>
@@ -47,7 +82,8 @@ export const PreviewPane = ({
           borderColor: "divider",
           p: 2,
           minHeight: 240
-        }}>
+        }}
+      >
         <Box sx={{ flex: 1, display: "grid", placeItems: "center" }}>
           <canvas ref={ref} />
         </Box>
@@ -60,7 +96,7 @@ export const PreviewPane = ({
       </Box>
 
       <Stack direction="row" spacing={1}>
-        <Button variant="outlined" onClick={onSavePng} disabled={busy}>
+        <Button variant="outlined" onClick={savePNG} disabled={busy}>
           Save PNG
         </Button>
       </Stack>
