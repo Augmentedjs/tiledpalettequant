@@ -1,7 +1,3 @@
-Here’s a complete, drop-in **README.md** you can put at the repo root. It reflects the current React/Webpack/TypeScript app, the legacy worker bridge, the palette legend, and the **indexed 8-bpp BMP** export with optional palette sorting and the legacy filename scheme.
-
----
-
 # Tiled Palette Quant (React)
 
 High-color background quantization for **SEGA Genesis / Mega Drive** workflows.
